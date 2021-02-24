@@ -4,6 +4,8 @@ RUN rustup component add clippy
 RUN rustup component add rustfmt
 RUN rustup target add x86_64-unknown-linux-musl
 
+RUN apt update && apt install -y tree
+
 WORKDIR /nydus-rs
 
-CMD make static-release
+CMD make static-test
