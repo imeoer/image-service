@@ -45,6 +45,14 @@ type MergeOption struct {
 	PrefetchPatterns string
 }
 
+func getBuilder() string {
+	builderPath := os.Getenv(envNydusBuilder)
+	if builderPath == "" {
+		builderPath = "nydus-image"
+	}
+	return builderPath
+}
+
 // Unpack a OCI formatted tar stream into a directory.
 func unpackOciTar(ctx context.Context, dst string, reader io.Reader) error {
 	ds, err := compression.DecompressStream(reader)
@@ -218,12 +226,8 @@ func Convert(ctx context.Context, src io.Reader, opt ConvertOption) (io.ReadClos
 	bootstrapPath := filepath.Join(workDir, "bootstrap")
 	blobPath := filepath.Join(workDir, "blob")
 
-	builderPath := os.Getenv(envNydusBuilder)
-	if builderPath == "" {
-		builderPath = "nydus-image"
-	}
 	if err := tool.Convert(tool.ConvertOption{
-		BuilderPath: builderPath,
+		BuilderPath: getBuilder(),
 
 		BootstrapPath:    bootstrapPath,
 		BlobPath:         blobPath,
@@ -294,7 +298,7 @@ func Merge(ctx context.Context, layers []Layer, opt MergeOption) (reader io.Read
 	targetBootstrapPath := filepath.Join(workDir, "bootstrap")
 
 	if err := tool.Merge(tool.MergeOption{
-		BuilderPath: "nydus-image",
+		BuilderPath: getBuilder(),
 
 		SourceBootstrapPaths: sourceBootstrapPaths,
 		TargetBootstrapPath:  targetBootstrapPath,
