@@ -18,6 +18,8 @@ import (
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 )
 
 const SupportedOS = "linux"
@@ -66,7 +68,7 @@ func MarshalToDesc(data interface{}, mediaType string) (*ocispec.Descriptor, []b
 func IsNydusPlatform(platform *ocispec.Platform) bool {
 	if platform != nil && platform.OSFeatures != nil {
 		for _, key := range platform.OSFeatures {
-			if key == ManifestOSFeatureNydus {
+			if key == nydusify.ManifestOSFeatureNydus {
 				return true
 			}
 		}
@@ -93,7 +95,7 @@ func MatchNydusPlatform(dst *ocispec.Descriptor, os, arch string) bool {
 	}
 
 	for _, feature := range dst.Platform.OSFeatures {
-		if feature == ManifestOSFeatureNydus {
+		if feature == nydusify.ManifestOSFeatureNydus {
 			return true
 		}
 	}

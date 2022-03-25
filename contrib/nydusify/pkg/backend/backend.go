@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/remote"
-	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -40,12 +40,12 @@ func blobDesc(size int64, blobID string) ocispec.Descriptor {
 	desc := ocispec.Descriptor{
 		Digest:    blobDigest,
 		Size:      size,
-		MediaType: utils.MediaTypeNydusBlob,
+		MediaType: nydusify.MediaTypeNydusBlob,
 		Annotations: map[string]string{
-			// Use `utils.LayerAnnotationUncompressed` to generate
+			// Use `nydusify.LayerAnnotationUncompressed` to generate
 			// DiffID of layer defined in OCI spec
-			utils.LayerAnnotationUncompressed: blobDigest.String(),
-			utils.LayerAnnotationNydusBlob:    "true",
+			nydusify.LayerAnnotationUncompressed: blobDigest.String(),
+			nydusify.LayerAnnotationNydusBlob:    "true",
 		},
 	}
 

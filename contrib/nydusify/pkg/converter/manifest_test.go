@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +29,7 @@ func makePlatform(osArch string, nydus bool) *ocispec.Platform {
 		}
 	}
 	if nydus {
-		platform.OSFeatures = []string{utils.ManifestOSFeatureNydus}
+		platform.OSFeatures = []string{nydusify.ManifestOSFeatureNydus}
 	}
 	return platform
 }

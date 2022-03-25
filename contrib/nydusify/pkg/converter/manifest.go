@@ -20,6 +20,7 @@ import (
 
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/backend"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/converter/provider"
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/remote"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 )
@@ -228,13 +229,13 @@ func (mm *manifestManager) Push(ctx context.Context, buildLayers []*buildLayer) 
 			if err != nil {
 				return errors.Wrap(err, "Marshal blob list")
 			}
-			record.NydusBootstrapDesc.Annotations[utils.LayerAnnotationNydusBlobIDs] = string(blobListBytes)
+			record.NydusBootstrapDesc.Annotations[nydusify.LayerAnnotationNydusBlobIDs] = string(blobListBytes)
 			if len(referenceBlobs) > 0 {
 				blobListBytes, err = json.Marshal(referenceBlobs)
 				if err != nil {
 					return errors.Wrap(err, "Marshal blob list")
 				}
-				record.NydusBootstrapDesc.Annotations[utils.LayerAnnotationNydusReferenceBlobIDs] = string(blobListBytes)
+				record.NydusBootstrapDesc.Annotations[nydusify.LayerAnnotationNydusReferenceBlobIDs] = string(blobListBytes)
 			}
 			layers = append(layers, *record.NydusBootstrapDesc)
 		}
@@ -249,13 +250,13 @@ func (mm *manifestManager) Push(ctx context.Context, buildLayers []*buildLayer) 
 
 	// Remove useless annotations from layer
 	validAnnotationKeys := map[string]bool{
-		utils.LayerAnnotationNydusBlob:             true,
-		utils.LayerAnnotationNydusBlobIDs:          true,
-		utils.LayerAnnotationNydusReferenceBlobIDs: true,
-		utils.LayerAnnotationNydusBootstrap:        true,
+		nydusify.LayerAnnotationNydusBlob:             true,
+		nydusify.LayerAnnotationNydusBlobIDs:          true,
+		nydusify.LayerAnnotationNydusReferenceBlobIDs: true,
+		nydusify.LayerAnnotationNydusBootstrap:        true,
 	}
 	for idx, desc := range layers {
-		layerDiffID := digest.Digest(desc.Annotations[utils.LayerAnnotationUncompressed])
+		layerDiffID := digest.Digest(desc.Annotations[nydusify.LayerAnnotationUncompressed])
 		if layerDiffID == "" {
 			layerDiffID = desc.Digest
 		}
@@ -311,7 +312,7 @@ func (mm *manifestManager) Push(ctx context.Context, buildLayers []*buildLayer) 
 		return errors.Wrap(err, "Marshal Nydus image manifest")
 	}
 
-	p, err := mm.CloneSourcePlatform(ctx, utils.ManifestOSFeatureNydus)
+	p, err := mm.CloneSourcePlatform(ctx, nydusify.ManifestOSFeatureNydus)
 	if err != nil {
 		return errors.Wrap(err, "clone source platform")
 	}

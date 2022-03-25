@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/backend"
-	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 )
 
 func makeRecord(id int64, hashBlob bool) *Record {
@@ -22,7 +22,7 @@ func makeRecord(id int64, hashBlob bool) *Record {
 	idStr := strconv.FormatInt(id, 10)
 	if hashBlob {
 		blobDesc = &ocispec.Descriptor{
-			MediaType: utils.MediaTypeNydusBlob,
+			MediaType: nydusify.MediaTypeNydusBlob,
 			Digest:    digest.FromString("blob-" + idStr),
 			Size:      id,
 		}
@@ -46,14 +46,14 @@ func makeBootstrapLayer(id int64, hasBlob bool) ocispec.Descriptor {
 		Digest:    digest.FromString("bootstrap-" + idStr),
 		Size:      id,
 		Annotations: map[string]string{
-			utils.LayerAnnotationNydusBootstrap:     "true",
-			utils.LayerAnnotationNydusSourceChainID: digest.FromString("chain-" + idStr).String(),
-			utils.LayerAnnotationUncompressed:       digest.FromString("bootstrap-uncompressed-" + idStr).String(),
+			nydusify.LayerAnnotationNydusBootstrap:     "true",
+			nydusify.LayerAnnotationNydusSourceChainID: digest.FromString("chain-" + idStr).String(),
+			nydusify.LayerAnnotationUncompressed:       digest.FromString("bootstrap-uncompressed-" + idStr).String(),
 		},
 	}
 	if hasBlob {
-		desc.Annotations[utils.LayerAnnotationNydusBlobDigest] = digest.FromString("blob-" + idStr).String()
-		desc.Annotations[utils.LayerAnnotationNydusBlobSize] = fmt.Sprintf("%d", id)
+		desc.Annotations[nydusify.LayerAnnotationNydusBlobDigest] = digest.FromString("blob-" + idStr).String()
+		desc.Annotations[nydusify.LayerAnnotationNydusBlobSize] = fmt.Sprintf("%d", id)
 	}
 	return desc
 }
@@ -61,12 +61,12 @@ func makeBootstrapLayer(id int64, hasBlob bool) ocispec.Descriptor {
 func makeBlobLayer(id int64) ocispec.Descriptor {
 	idStr := strconv.FormatInt(id, 10)
 	return ocispec.Descriptor{
-		MediaType: utils.MediaTypeNydusBlob,
+		MediaType: nydusify.MediaTypeNydusBlob,
 		Digest:    digest.FromString("blob-" + idStr),
 		Size:      id,
 		Annotations: map[string]string{
-			utils.LayerAnnotationNydusBlob:          "true",
-			utils.LayerAnnotationNydusSourceChainID: digest.FromString("chain-" + idStr).String(),
+			nydusify.LayerAnnotationNydusBlob:          "true",
+			nydusify.LayerAnnotationNydusSourceChainID: digest.FromString("chain-" + idStr).String(),
 		},
 	}
 }

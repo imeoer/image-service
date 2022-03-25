@@ -14,6 +14,7 @@ import (
 	"strconv"
 
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/backend"
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/remote"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 	"github.com/sirupsen/logrus"
@@ -78,7 +79,7 @@ func New(remote *remote.Remote, opt Opt) (*Cache, error) {
 }
 
 func (cacheRecord *Record) GetReferenceBlobs() []string {
-	listStr := cacheRecord.NydusBootstrapDesc.Annotations[utils.LayerAnnotationNydusReferenceBlobIDs]
+	listStr := cacheRecord.NydusBootstrapDesc.Annotations[nydusify.LayerAnnotationNydusReferenceBlobIDs]
 	if listStr == "" {
 		return []string{}
 	}
@@ -107,11 +108,11 @@ func (cache *Cache) recordToLayer(record *Record) (*ocispec.Descriptor, *ocispec
 		if record.NydusBlobDesc != nil {
 			if cache.opt.Backend.Type() == backend.RegistryBackend {
 				return nil, &ocispec.Descriptor{
-					MediaType: utils.MediaTypeNydusBlob,
+					MediaType: nydusify.MediaTypeNydusBlob,
 					Digest:    record.NydusBlobDesc.Digest,
 					Size:      record.NydusBlobDesc.Size,
 					Annotations: map[string]string{
-						utils.LayerAnnotationNydusBlob: "true",
+						nydusify.LayerAnnotationNydusBlob: "true",
 					},
 				}
 			}
@@ -128,14 +129,14 @@ func (cache *Cache) recordToLayer(record *Record) (*ocispec.Descriptor, *ocispec
 		Digest:    record.NydusBootstrapDesc.Digest,
 		Size:      record.NydusBootstrapDesc.Size,
 		Annotations: map[string]string{
-			utils.LayerAnnotationNydusBootstrap:     "true",
-			utils.LayerAnnotationNydusSourceChainID: record.SourceChainID.String(),
+			nydusify.LayerAnnotationNydusBootstrap:     "true",
+			nydusify.LayerAnnotationNydusSourceChainID: record.SourceChainID.String(),
 			// Use the annotation to record bootstrap layer DiffID.
-			utils.LayerAnnotationUncompressed: record.NydusBootstrapDiffID.String(),
+			nydusify.LayerAnnotationUncompressed: record.NydusBootstrapDiffID.String(),
 		},
 	}
-	if refenceBlobsStr, ok := record.NydusBootstrapDesc.Annotations[utils.LayerAnnotationNydusReferenceBlobIDs]; ok {
-		bootstrapCacheDesc.Annotations[utils.LayerAnnotationNydusReferenceBlobIDs] = refenceBlobsStr
+	if refenceBlobsStr, ok := record.NydusBootstrapDesc.Annotations[nydusify.LayerAnnotationNydusReferenceBlobIDs]; ok {
+		bootstrapCacheDesc.Annotations[nydusify.LayerAnnotationNydusReferenceBlobIDs] = refenceBlobsStr
 	}
 
 	var blobCacheDesc *ocispec.Descriptor
@@ -144,17 +145,17 @@ func (cache *Cache) recordToLayer(record *Record) (*ocispec.Descriptor, *ocispec
 		// to registry instead of storage backend.
 		if cache.opt.Backend.Type() == backend.RegistryBackend {
 			blobCacheDesc = &ocispec.Descriptor{
-				MediaType: utils.MediaTypeNydusBlob,
+				MediaType: nydusify.MediaTypeNydusBlob,
 				Digest:    record.NydusBlobDesc.Digest,
 				Size:      record.NydusBlobDesc.Size,
 				Annotations: map[string]string{
-					utils.LayerAnnotationNydusBlob:          "true",
-					utils.LayerAnnotationNydusSourceChainID: record.SourceChainID.String(),
+					nydusify.LayerAnnotationNydusBlob:          "true",
+					nydusify.LayerAnnotationNydusSourceChainID: record.SourceChainID.String(),
 				},
 			}
 		} else {
-			bootstrapCacheDesc.Annotations[utils.LayerAnnotationNydusBlobDigest] = record.NydusBlobDesc.Digest.String()
-			bootstrapCacheDesc.Annotations[utils.LayerAnnotationNydusBlobSize] = strconv.FormatInt(record.NydusBlobDesc.Size, 10)
+			bootstrapCacheDesc.Annotations[nydusify.LayerAnnotationNydusBlobDigest] = record.NydusBlobDesc.Digest.String()
+			bootstrapCacheDesc.Annotations[nydusify.LayerAnnotationNydusBlobSize] = strconv.FormatInt(record.NydusBlobDesc.Size, 10)
 		}
 	}
 
@@ -189,9 +190,9 @@ func (cache *Cache) exportRecordsToLayers() []ocispec.Descriptor {
 }
 
 func (cache *Cache) layerToRecord(layer *ocispec.Descriptor) *Record {
-	sourceChainIDStr, ok := layer.Annotations[utils.LayerAnnotationNydusSourceChainID]
+	sourceChainIDStr, ok := layer.Annotations[nydusify.LayerAnnotationNydusSourceChainID]
 	if !ok {
-		if layer.Annotations[utils.LayerAnnotationNydusBlob] == "true" {
+		if layer.Annotations[nydusify.LayerAnnotationNydusBlob] == "true" {
 			// for reference blob layers
 			return &Record{
 				NydusBlobDesc: &ocispec.Descriptor{
@@ -199,7 +200,7 @@ func (cache *Cache) layerToRecord(layer *ocispec.Descriptor) *Record {
 					Digest:    layer.Digest,
 					Size:      layer.Size,
 					Annotations: map[string]string{
-						utils.LayerAnnotationNydusBlob: "true",
+						nydusify.LayerAnnotationNydusBlob: "true",
 					},
 				},
 			}
@@ -215,8 +216,8 @@ func (cache *Cache) layerToRecord(layer *ocispec.Descriptor) *Record {
 	}
 
 	// Handle bootstrap cache layer
-	if layer.Annotations[utils.LayerAnnotationNydusBootstrap] == "true" {
-		uncompressedDigestStr := layer.Annotations[utils.LayerAnnotationUncompressed]
+	if layer.Annotations[nydusify.LayerAnnotationNydusBootstrap] == "true" {
+		uncompressedDigestStr := layer.Annotations[nydusify.LayerAnnotationUncompressed]
 		if uncompressedDigestStr == "" {
 			return nil
 		}
@@ -229,31 +230,31 @@ func (cache *Cache) layerToRecord(layer *ocispec.Descriptor) *Record {
 			Digest:    layer.Digest,
 			Size:      layer.Size,
 			Annotations: map[string]string{
-				utils.LayerAnnotationNydusBootstrap: "true",
-				utils.LayerAnnotationUncompressed:   uncompressedDigestStr,
+				nydusify.LayerAnnotationNydusBootstrap: "true",
+				nydusify.LayerAnnotationUncompressed:   uncompressedDigestStr,
 			},
 		}
-		referenceBlobsStr := layer.Annotations[utils.LayerAnnotationNydusReferenceBlobIDs]
+		referenceBlobsStr := layer.Annotations[nydusify.LayerAnnotationNydusReferenceBlobIDs]
 		if referenceBlobsStr != "" {
-			bootstrapDesc.Annotations[utils.LayerAnnotationNydusReferenceBlobIDs] = referenceBlobsStr
+			bootstrapDesc.Annotations[nydusify.LayerAnnotationNydusReferenceBlobIDs] = referenceBlobsStr
 		}
 		var nydusBlobDesc *ocispec.Descriptor
-		if layer.Annotations[utils.LayerAnnotationNydusBlobDigest] != "" &&
-			layer.Annotations[utils.LayerAnnotationNydusBlobSize] != "" {
-			blobDigest := digest.Digest(layer.Annotations[utils.LayerAnnotationNydusBlobDigest])
+		if layer.Annotations[nydusify.LayerAnnotationNydusBlobDigest] != "" &&
+			layer.Annotations[nydusify.LayerAnnotationNydusBlobSize] != "" {
+			blobDigest := digest.Digest(layer.Annotations[nydusify.LayerAnnotationNydusBlobDigest])
 			if blobDigest.Validate() != nil {
 				return nil
 			}
-			blobSize, err := strconv.ParseInt(layer.Annotations[utils.LayerAnnotationNydusBlobSize], 10, 64)
+			blobSize, err := strconv.ParseInt(layer.Annotations[nydusify.LayerAnnotationNydusBlobSize], 10, 64)
 			if err != nil {
 				return nil
 			}
 			nydusBlobDesc = &ocispec.Descriptor{
-				MediaType: utils.MediaTypeNydusBlob,
+				MediaType: nydusify.MediaTypeNydusBlob,
 				Digest:    blobDigest,
 				Size:      blobSize,
 				Annotations: map[string]string{
-					utils.LayerAnnotationNydusBlob: "true",
+					nydusify.LayerAnnotationNydusBlob: "true",
 				},
 			}
 		}
@@ -266,13 +267,13 @@ func (cache *Cache) layerToRecord(layer *ocispec.Descriptor) *Record {
 	}
 
 	// Handle blob cache layer
-	if layer.Annotations[utils.LayerAnnotationNydusBlob] == "true" {
+	if layer.Annotations[nydusify.LayerAnnotationNydusBlob] == "true" {
 		nydusBlobDesc := &ocispec.Descriptor{
 			MediaType: layer.MediaType,
 			Digest:    layer.Digest,
 			Size:      layer.Size,
 			Annotations: map[string]string{
-				utils.LayerAnnotationNydusBlob: "true",
+				nydusify.LayerAnnotationNydusBlob: "true",
 			},
 		}
 		return &Record{
@@ -347,10 +348,10 @@ func (cache *Cache) Export(ctx context.Context) error {
 	diffIDs := []digest.Digest{}
 	for _, layer := range layers {
 		var diffID digest.Digest
-		if layer.MediaType == utils.MediaTypeNydusBlob {
+		if layer.MediaType == nydusify.MediaTypeNydusBlob {
 			diffID = layer.Digest
 		} else {
-			diffID = digest.Digest(layer.Annotations[utils.LayerAnnotationUncompressed])
+			diffID = digest.Digest(layer.Annotations[nydusify.LayerAnnotationUncompressed])
 		}
 		if diffID.Validate() == nil {
 			diffIDs = append(diffIDs, diffID)
@@ -402,7 +403,7 @@ func (cache *Cache) Export(ctx context.Context) error {
 			Config: *configDesc,
 			Layers: layers,
 			Annotations: map[string]string{
-				utils.ManifestNydusCache: cache.opt.Version,
+				nydusify.ManifestNydusCache: cache.opt.Version,
 			},
 		},
 	}
@@ -444,10 +445,10 @@ func (cache *Cache) Import(ctx context.Context) error {
 	}
 
 	// Discard the cache mismatched version
-	if manifest.Annotations[utils.ManifestNydusCache] != cache.opt.Version {
+	if manifest.Annotations[nydusify.ManifestNydusCache] != cache.opt.Version {
 		return fmt.Errorf(
 			"unmatched cache image version %s, required to be %s",
-			manifest.Annotations[utils.ManifestNydusCache], cache.opt.Version,
+			manifest.Annotations[nydusify.ManifestNydusCache], cache.opt.Version,
 		)
 	}
 
@@ -524,7 +525,7 @@ func (cache *Cache) PullBootstrap(ctx context.Context, bootstrapDesc *ocispec.De
 	}
 	defer reader.Close()
 
-	if err := utils.UnpackFile(reader, utils.BootstrapFileNameInLayer, target); err != nil {
+	if err := utils.UnpackFile(reader, nydusify.BootstrapFileNameInLayer, target); err != nil {
 		return errors.Wrap(err, "Unpack cached bootstrap layer")
 	}
 

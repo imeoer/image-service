@@ -1,4 +1,8 @@
-package converter
+// Copyright 2022 Nydus Developers. All rights reserved.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+package nydusify
 
 import (
 	"archive/tar"

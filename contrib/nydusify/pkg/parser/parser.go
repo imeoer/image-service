@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/remote"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 
@@ -67,7 +68,7 @@ func findNydusBootstrapDesc(manifest *ocispec.Manifest) *ocispec.Descriptor {
 		desc := &layers[len(layers)-1]
 		if (desc.MediaType == ocispec.MediaTypeImageLayerGzip ||
 			desc.MediaType == images.MediaTypeDockerSchema2LayerGzip) &&
-			desc.Annotations[utils.LayerAnnotationNydusBootstrap] == "true" {
+			desc.Annotations[nydusify.LayerAnnotationNydusBootstrap] == "true" {
 			return desc
 		}
 	}

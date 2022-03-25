@@ -18,6 +18,7 @@ import (
 
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/checker/tool"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/converter/provider"
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/parser"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 )
@@ -88,7 +89,7 @@ func getChunkDictFromRegistry(prepareDir, imageName string, insecure bool, platf
 		return "", err
 	}
 	defer rc.Close()
-	if err = utils.UnpackFile(rc, utils.BootstrapFileNameInLayer, targetFile); err != nil {
+	if err = utils.UnpackFile(rc, nydusify.BootstrapFileNameInLayer, targetFile); err != nil {
 		return "", err
 	}
 	return targetFile, nil
@@ -132,11 +133,11 @@ func (cvt *Converter) prepareBootstrap(prepareDir, from, info string) (string, [
 	for _, blobInfo := range blobsInfo {
 		blobDigest := digest.NewDigestFromEncoded(digest.SHA256, blobInfo.BlobID)
 		blobLayers = append(blobLayers, ocispec.Descriptor{
-			MediaType: utils.MediaTypeNydusBlob,
+			MediaType: nydusify.MediaTypeNydusBlob,
 			Size:      int64(blobInfo.CompressedSize),
 			Digest:    blobDigest,
 			Annotations: map[string]string{
-				utils.LayerAnnotationNydusBlob: "true",
+				nydusify.LayerAnnotationNydusBlob: "true",
 			},
 		})
 	}

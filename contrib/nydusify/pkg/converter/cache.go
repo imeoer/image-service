@@ -16,6 +16,7 @@ import (
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/backend"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/cache"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/converter/provider"
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/remote"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 )
@@ -112,7 +113,7 @@ func (cg *cacheGlue) Push(ctx context.Context, layer *buildLayer) error {
 
 	// Push bootstrap layer to cache image
 	bootstrapReader, err := utils.PackTargz(
-		layer.bootstrapPath, utils.BootstrapFileNameInLayer, true,
+		layer.bootstrapPath, nydusify.BootstrapFileNameInLayer, true,
 	)
 	if err != nil {
 		return pushDone(errors.Wrapf(err, "Compress bootstrap layer"))

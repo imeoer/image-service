@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/parser"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 )
@@ -67,12 +68,12 @@ func (rule *ManifestRule) Validate() error {
 	layers := rule.TargetParsed.NydusImage.Manifest.Layers
 	for i, layer := range layers {
 		if i == len(layers)-1 {
-			if layer.Annotations[utils.LayerAnnotationNydusBootstrap] != "true" {
+			if layer.Annotations[nydusify.LayerAnnotationNydusBootstrap] != "true" {
 				return errors.New("invalid bootstrap layer in nydus image manifest")
 			}
 		} else {
-			if layer.MediaType != utils.MediaTypeNydusBlob ||
-				layer.Annotations[utils.LayerAnnotationNydusBlob] != "true" {
+			if layer.MediaType != nydusify.MediaTypeNydusBlob ||
+				layer.Annotations[nydusify.LayerAnnotationNydusBlob] != "true" {
 				return errors.New("invalid blob layer in nydus image manifest")
 			}
 		}

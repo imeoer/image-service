@@ -25,6 +25,7 @@ import (
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/build"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/cache"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/converter/provider"
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/remote"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 )
@@ -132,14 +133,14 @@ func (layer *buildLayer) pushBlob(ctx context.Context, blobSize int64) error {
 func (layer *buildLayer) pushBootstrap(ctx context.Context) (*ocispec.Descriptor, *digest.Digest, error) {
 	// TODO: make these PackTargzInfo calls concurrently
 	compressedDigest, compressedSize, err := utils.PackTargzInfo(
-		layer.bootstrapPath, utils.BootstrapFileNameInLayer, true,
+		layer.bootstrapPath, nydusify.BootstrapFileNameInLayer, true,
 	)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Calculate compressed boostrap digest")
 	}
 
 	uncompressedDigest, _, err := utils.PackTargzInfo(
-		layer.bootstrapPath, utils.BootstrapFileNameInLayer, false,
+		layer.bootstrapPath, nydusify.BootstrapFileNameInLayer, false,
 	)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Calculate uncompressed boostrap digest")
@@ -155,20 +156,20 @@ func (layer *buildLayer) pushBootstrap(ctx context.Context) (*ocispec.Descriptor
 		Size:      compressedSize,
 		MediaType: bootstrapMediaType,
 		Annotations: map[string]string{
-			// Use `utils.LayerAnnotationUncompressed` to generate
+			// Use `nydusify.LayerAnnotationUncompressed` to generate
 			// DiffID of layer defined in OCI spec
-			utils.LayerAnnotationUncompressed:   uncompressedDigest.String(),
-			utils.LayerAnnotationNydusBootstrap: "true",
+			nydusify.LayerAnnotationUncompressed:   uncompressedDigest.String(),
+			nydusify.LayerAnnotationNydusBootstrap: "true",
 		},
 	}
 	if len(layer.referenceBlobs) > 0 {
 		blobsBytes, _ := json.Marshal(layersHex(layer.referenceBlobs))
-		desc.Annotations[utils.LayerAnnotationNydusReferenceBlobIDs] = string(blobsBytes)
+		desc.Annotations[nydusify.LayerAnnotationNydusReferenceBlobIDs] = string(blobsBytes)
 	}
 
 	if err := utils.WithRetry(func() error {
 		compressedReader, err := utils.PackTargz(
-			layer.bootstrapPath, utils.BootstrapFileNameInLayer, true,
+			layer.bootstrapPath, nydusify.BootstrapFileNameInLayer, true,
 		)
 		if err != nil {
 			return errors.Wrap(err, "Compress boostrap layer")
@@ -266,10 +267,10 @@ func (layer *buildLayer) Mount(ctx context.Context) (func() error, error) {
 			} else {
 				// for oss backend, only need digest
 				referenceBlobs = append(referenceBlobs, ocispec.Descriptor{
-					MediaType: utils.MediaTypeNydusBlob,
+					MediaType: nydusify.MediaTypeNydusBlob,
 					Digest:    blobDigest,
 					Annotations: map[string]string{
-						utils.LayerAnnotationNydusBlob: "true",
+						nydusify.LayerAnnotationNydusBlob: "true",
 					},
 				})
 			}

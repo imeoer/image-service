@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/nydusify"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/parser"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/utils"
 )
@@ -78,7 +79,7 @@ func (checker *Checker) Output(
 		}
 		defer bootstrapReader.Close()
 
-		if err := utils.UnpackFile(bootstrapReader, utils.BootstrapFileNameInLayer, target); err != nil {
+		if err := utils.UnpackFile(bootstrapReader, nydusify.BootstrapFileNameInLayer, target); err != nil {
 			return errors.Wrap(err, "unpack Nydus bootstrap layer")
 		}
 	}
