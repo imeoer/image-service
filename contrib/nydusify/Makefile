@@ -2,6 +2,10 @@ GIT_COMMIT := $(shell git rev-list -1 HEAD)
 BUILD_TIME := $(shell date -u +%Y%m%d.%H%M)
 CURRENT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 PACKAGES ?= $(shell go list ./... | grep -v /vendor/)
+SUDO = $(shell which sudo)
+GO_EXECUTABLE_PATH ?= $(shell which go)
+NYDUS_BUILDER ?= ${WORKDIR}/target-fusedev/release/nydus-image
+NYDUS_NYDUSD ?= ${WORKDIR}/target-fusedev/release/nydusd
 #GOPROXY ?= https://goproxy.io
 
 ifdef GOPROXY
@@ -20,7 +24,8 @@ static-release:
 test: build build-smoke
 	@go vet $(PACKAGES)
 	golangci-lint run
-	@go test -count=1 -v -timeout 20m -race ./pkg/...
+	echo $(WORKDIR)
+	@$(SUDO) NYDUS_BUILDER=${NYDUS_BUILDER} NYDUS_NYDUSD=${NYDUS_NYDUSD} ${GO_EXECUTABLE_PATH} test -count=1 -v -timeout 20m -race ./pkg/...
 
 build-smoke:
 	${PROXY} GOOS=linux go test -race -v -c -o ./nydusify-smoke ./tests
