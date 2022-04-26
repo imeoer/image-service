@@ -4,7 +4,8 @@ TEST_WORKDIR_PREFIX ?= "/tmp"
 DOCKER ?= "true"
 
 current_dir := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-ARCH := $(shell uname -p)
+ARCH ?= $(shell uname -p)
+GOARCH ?= amd64
 
 env_go_path := $(shell go env GOPATH 2> /dev/null)
 go_path := $(if $(env_go_path),$(env_go_path),"$(HOME)/go")
@@ -36,12 +37,12 @@ endef
 # Build nydus respecting different features
 # $(1) is the specified feature. [fusedev, virtiofs]
 define build_nydus
-	cargo build --features=$(1) --target-dir target-$(1) $(CARGO_BUILD_FLAGS)
+	cross build --features=$(1) --target-dir target-$(1) $(CARGO_BUILD_FLAGS)
 endef
 
 define static_check
 	# Cargo will skip checking if it is already checked
-	cargo clippy --features=$(1) --workspace --bins --tests --target-dir target-$(1) -- -Dwarnings
+	cross clippy --features=$(1) --workspace --bins --tests --target-dir target-$(1) -- -Dwarnings
 endef
 
 .PHONY: all .release_version .format .musl_target build release static-release fusedev-release virtiofs-release virtiofs fusedev
@@ -50,7 +51,7 @@ endef
 	$(eval CARGO_BUILD_FLAGS += --release)
 
 .format:
-	cargo fmt -- --check
+	cross fmt -- --check
 
 .musl_target:
 	$(eval CARGO_BUILD_FLAGS += --target ${ARCH}-unknown-linux-musl)
@@ -98,7 +99,7 @@ SUDO = $(shell which sudo)
 
 docker-static:
 	docker build -t nydus-rs-static --build-arg ARCH=${ARCH} misc/musl-static
-	docker run --rm ${CARGO_BUILD_GEARS} --workdir /nydus-rs -v ${current_dir}:/nydus-rs nydus-rs-static
+	docker run --rm ${CARGO_BUILD_GEARS} -e ARCH=${ARCH} --workdir /nydus-rs -v ${current_dir}:/nydus-rs nydus-rs-static
 
 # Run smoke test including general integration tests and unit tests in container.
 # Nydus binaries should already be prepared.
