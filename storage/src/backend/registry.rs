@@ -359,7 +359,13 @@ impl RegistryReader {
             .connection
             .call::<&[u8]>(method.clone(), url, None, None, headers.clone(), false)
             .map_err(RegistryError::Request)?;
-        if resp.status() == StatusCode::UNAUTHORIZED {
+        if vec![
+            StatusCode::UNAUTHORIZED,
+            StatusCode::FORBIDDEN,
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ]
+        .contains(&resp.status())
+        {
             if let Some(resp_auth_header) = resp.headers().get(HEADER_WWW_AUTHENTICATE) {
                 // Get token from registry authorization server
                 if let Some(auth) = RegistryState::parse_auth(resp_auth_header, &self.state.auth) {
@@ -436,7 +442,12 @@ impl RegistryReader {
 
             // The request has expired or has been denied, need to re-request
             if allow_retry
-                && vec![StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN].contains(&resp.status())
+                && vec![
+                    StatusCode::UNAUTHORIZED,
+                    StatusCode::FORBIDDEN,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                ]
+                .contains(&resp.status())
             {
                 warn!(
                     "The redirected link has expired: {}, will retry read",
