@@ -471,14 +471,16 @@ impl BlobMetaInfo {
                 index += 1;
                 let entry = &infos[index];
                 self.validate_chunk(entry)?;
-                if entry.uncompressed_offset() != last_end {
-                    return Err(einval!(format!(
-                        "mismatch uncompressed {} size {} last_end {}",
-                        entry.uncompressed_offset(),
-                        entry.uncompressed_size(),
-                        last_end
-                    )));
-                }
+
+                // FIXME: for stargz chunks, disable this check.
+                // if entry.uncompressed_offset() != last_end {
+                //     return Err(einval!(format!(
+                //         "mismatch uncompressed {} size {} last_end {}",
+                //         entry.uncompressed_offset(),
+                //         entry.uncompressed_size(),
+                //         last_end
+                //     )));
+                // }
 
                 // Avoid read amplify if next chunk is too big.
                 if last_end >= end && entry.aligned_uncompressed_end() > batch_end {
@@ -568,9 +570,9 @@ impl BlobMetaInfo {
 
     #[inline]
     fn validate_chunk(&self, entry: &BlobChunkInfoOndisk) -> Result<()> {
-        if entry.compressed_end() > self.state.compressed_size
-            || entry.uncompressed_end() > self.state.uncompressed_size
-        {
+        // For stargz blob, self.state.compressed_size == 0, so don't validate
+        // entry.compressed_end() > self.state.compressed_size.
+        if entry.uncompressed_end() > self.state.uncompressed_size {
             Err(einval!())
         } else {
             Ok(())
@@ -676,6 +678,13 @@ impl BlobMetaState {
         let mut right = size;
         let mut start = 0;
         let mut end = 0;
+
+        // FIXME: it's workaround for stargz chunks.
+        for i in 0..self.chunk_count {
+            if addr == chunks[i as usize].uncompressed_offset() {
+                return Ok(i as usize);
+            }
+        }
 
         while left < right {
             let mid = left + size / 2;
@@ -827,78 +836,27 @@ mod tests {
         assert_eq!(chunk.uncompressed_size(), 1);
         assert_eq!(chunk.aligned_uncompressed_end(), 0x1000);
 
-        // chunk.set_compressed_offset(0x1000);
-        // chunk.set_compressed_size(0x100);
-        // assert_eq!(chunk.compressed_offset(), 0x1000);
-        // assert_eq!(chunk.compressed_size(), 0x100);
-        // assert_eq!(chunk.compressed_end(), 0x1100);
-        // chunk.set_uncompressed_offset(0x2000);
-        // chunk.set_uncompressed_size(0x100);
-        // assert_eq!(chunk.uncompressed_offset(), 0x2000);
-        // assert_eq!(chunk.uncompressed_size(), 0x100);
-        // assert_eq!(chunk.uncompressed_end(), 0x2100);
-        // assert_eq!(chunk.aligned_uncompressed_end(), 0x3000);
-        // assert!(!chunk.is_compressed());
-
-        // chunk.set_uncompressed_size(0x200);
-        // assert_eq!(chunk.uncompressed_size(), 0x200);
-        // assert!(chunk.is_compressed());
-
-        // chunk.set_uncompressed_size(0x100000);
-        // assert_eq!(chunk.uncompressed_size(), 0x100000);
-
-        // chunk.set_uncompressed_size(0x100000 + 0x100);
-        // assert_eq!(chunk.uncompressed_size(), 0x100000 + 0x100);
-
         chunk.set_compressed_offset(0x1000);
-        assert_eq!(chunk.compressed_offset(), 0x1000);
-
         chunk.set_compressed_size(0x100);
-        assert_eq!(chunk.compressed_size(), 0x100);
-
-        chunk.set_compressed_offset(0x1000);
         assert_eq!(chunk.compressed_offset(), 0x1000);
-
-        chunk.set_compressed_size(0x100);
         assert_eq!(chunk.compressed_size(), 0x100);
 
         chunk.set_uncompressed_offset(0x1000);
-        assert_eq!(chunk.uncompressed_offset(), 0x1000);
-
         chunk.set_uncompressed_size(0x100);
-        assert_eq!(chunk.uncompressed_size(), 0x100);
-
-        chunk.set_uncompressed_offset(0x1000);
         assert_eq!(chunk.uncompressed_offset(), 0x1000);
-
-        chunk.set_uncompressed_size(0x100);
         assert_eq!(chunk.uncompressed_size(), 0x100);
 
         //
 
-        chunk.set_compressed_offset(0x100000 + 0x100);
-        assert_eq!(chunk.compressed_offset(), 0x100000 + 0x100);
+        chunk.set_compressed_offset(0x1000000);
+        chunk.set_compressed_size(0x1000000);
+        assert_eq!(chunk.compressed_offset(), 0x1000000);
+        assert_eq!(chunk.compressed_size(), 0x1000000);
 
-        chunk.set_compressed_size(0x100000 + 0x100);
-        assert_eq!(chunk.compressed_size(), 0x100000 + 0x100);
-
-        chunk.set_compressed_offset(0x100000 + 0x100);
-        assert_eq!(chunk.compressed_offset(), 0x100000 + 0x100);
-
-        chunk.set_compressed_size(0x100000 + 0x100);
-        assert_eq!(chunk.compressed_size(), 0x100000 + 0x100);
-
-        chunk.set_uncompressed_offset(0x100000 + 0x100);
-        assert_eq!(chunk.uncompressed_offset(), 0x100000);
-
-        chunk.set_uncompressed_size(0x100000 + 0x100);
-        assert_eq!(chunk.uncompressed_size(), 0x100000 + 0x100);
-
-        chunk.set_uncompressed_offset(0x100000 + 0x100);
-        assert_eq!(chunk.uncompressed_offset(), 0x100000);
-
-        chunk.set_uncompressed_size(0x100000 + 0x100);
-        assert_eq!(chunk.uncompressed_size(), 0x100000 + 0x100);
+        chunk.set_uncompressed_offset(0x1000000);
+        chunk.set_uncompressed_size(0x1000000);
+        assert_eq!(chunk.uncompressed_offset(), 0x1000000);
+        assert_eq!(chunk.uncompressed_size(), 0x1000000);
     }
 
     #[test]

@@ -359,6 +359,22 @@ impl BlobObject for FileCacheEntry {
 
 impl FileCacheEntry {
     fn do_fetch_chunks(&self, chunks: &[BlobIoChunk]) -> Result<usize> {
+        if self.is_stargz() {
+            for chunk in chunks {
+                let mut buf = alloc_buf(chunk.uncompress_size() as usize);
+                self.read_raw_chunk(chunk, &mut buf, false, None)?;
+                if self.dio_enabled {
+                    self.adjust_buffer_for_dio(&mut buf)
+                }
+                Self::persist_chunk(&self.file, chunk.uncompress_offset(), &buf)
+                    .map_err(|e| eio!(format!("do_fetch_chunk failed to persist data, {:?}", e)))?;
+                self.chunk_map
+                    .set_ready_and_clear_pending(chunk.as_base())
+                    .unwrap_or_else(|e| error!("set ready failed, {}", e));
+            }
+            return Ok(0);
+        }
+
         debug_assert!(!chunks.is_empty());
         let bitmap = self
             .chunk_map
