@@ -32,12 +32,12 @@ use nydus_storage::factory::BlobFactory;
 use nydus_storage::{RAFS_DEFAULT_CHUNK_SIZE, RAFS_MAX_CHUNK_SIZE};
 use nydus_utils::{compress, digest};
 
-use crate::builder::{Builder, DiffBuilder, DirectoryBuilder, StargzBuilder};
+use crate::builder::{Builder, DirectoryBuilder, StargzBuilder};
 use crate::core::blob_compact::BlobCompactor;
 use crate::core::chunk_dict::{import_chunk_dict, parse_chunk_dict_arg};
 use crate::core::context::{
-    ArtifactStorage, BlobManager, BootstrapManager, BuildContext, BuildOutput, BuildOutputArtifact,
-    RafsVersion, SourceType,
+    ArtifactStorage, BlobManager, BootstrapManager, BuildContext, BuildOutput, RafsVersion,
+    SourceType,
 };
 use crate::core::node::{self, WhiteoutSpec};
 use crate::core::prefetch::Prefetch;
@@ -63,8 +63,6 @@ const BLOB_ID_MAXIMUM_LENGTH: usize = 255;
 pub struct OutputSerializer {
     /// The binary version of builder (nydus-image).
     version: String,
-    /// Represents all artifacts(bootstrap + blob) ordered by layer.
-    artifacts: Vec<BuildOutputArtifact>,
     /// Represents all blob in blob table ordered by blob index, this field
     /// only include the layer that does have a blob, and should be deprecated
     /// in future, use `artifacts` field to replace.
@@ -95,7 +93,6 @@ impl OutputSerializer {
             let version = format!("{}-{}", build_info.package_ver, build_info.git_commit);
             let output = Self {
                 version,
-                artifacts: build_output.artifacts,
                 blobs: build_output.blobs,
                 trace,
             };
@@ -127,7 +124,6 @@ impl OutputSerializer {
             let version = format!("{}-{}", build_info.package_ver, build_info.git_commit);
             let output = Self {
                 version,
-                artifacts: Vec::new(),
                 blobs: blob_ids,
                 trace,
             };
@@ -612,10 +608,6 @@ impl Command {
         let blob_offset = Self::get_blob_offset(matches)?;
         let parent_bootstrap = Self::get_parent_bootstrap(matches)?;
         let source_path = PathBuf::from(matches.value_of("SOURCE").unwrap());
-        let extra_paths: Vec<PathBuf> = matches
-            .values_of("SOURCE")
-            .map(|paths| paths.map(PathBuf::from).skip(1).collect())
-            .unwrap();
         let source_type: SourceType = matches.value_of("source-type").unwrap().parse()?;
         let blob_stor = Self::get_blob_storage(matches, source_type)?;
         let blob_meta_stor = Self::get_blob_meta_storage(matches)?;
@@ -636,7 +628,7 @@ impl Command {
         let mut compressor = matches.value_of("compressor").unwrap_or_default().parse()?;
         let mut digester = matches.value_of("digester").unwrap_or_default().parse()?;
         match source_type {
-            SourceType::Directory | SourceType::Diff => {
+            SourceType::Directory => {
                 Self::ensure_directory(&source_path)?;
             }
             SourceType::StargzIndex => {
@@ -686,16 +678,6 @@ impl Command {
 
         let mut bootstrap_mgr = if inline_bootstrap {
             BootstrapManager::new(None, parent_bootstrap)
-        } else if source_type == SourceType::Diff {
-            let bootstrap_dir = matches.value_of("diff-bootstrap-dir");
-            let storage = if let Some(bootstrap_dir) = bootstrap_dir {
-                Self::ensure_directory(&bootstrap_dir)?;
-                ArtifactStorage::FileDir(PathBuf::from(bootstrap_dir))
-            } else {
-                let bootstrap_path = Self::get_bootstrap(matches)?;
-                ArtifactStorage::SingleFile(PathBuf::from(bootstrap_path))
-            };
-            BootstrapManager::new(Some(storage), parent_bootstrap)
         } else {
             let bootstrap_path = Self::get_bootstrap(matches)?;
             BootstrapManager::new(
@@ -704,15 +686,9 @@ impl Command {
             )
         };
 
-        let diff_overlay_hint = matches.is_present("diff-overlay-hint");
         let mut builder: Box<dyn Builder> = match source_type {
             SourceType::Directory => Box::new(DirectoryBuilder::new()),
             SourceType::StargzIndex => Box::new(StargzBuilder::new()),
-            SourceType::Diff => Box::new(DiffBuilder::new(
-                extra_paths,
-                diff_overlay_hint,
-                matches.value_of("diff-skip-layer"),
-            )?),
         };
         let build_output = timing_tracer!(
             {
@@ -904,7 +880,7 @@ impl Command {
         // Must specify a path to blob file.
         // For cli/binary interface compatibility sake, keep option `backend-config`, but
         // it only receives "localfs" backend type and it will be REMOVED in the future
-        let blob_stor = if source_type == SourceType::Directory || source_type == SourceType::Diff {
+        let blob_stor = if source_type == SourceType::Directory {
             if let Some(p) = matches
                 .value_of("blob")
                 .map(|b| ArtifactStorage::SingleFile(b.into()))

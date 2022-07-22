@@ -15,7 +15,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Error, Result};
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tar::{EntryType, Header};
 use vmm_sys_util::tempfile::TempFile;
@@ -25,13 +24,12 @@ use rafs::metadata::layout::v5::RafsV5BlobTable;
 use rafs::metadata::layout::v6::{RafsV6BlobTable, EROFS_BLOCK_SIZE, EROFS_INODE_SLOT_SIZE};
 use rafs::metadata::layout::{RafsBlobTable, RAFS_SUPER_VERSION_V5, RAFS_SUPER_VERSION_V6};
 use rafs::metadata::RafsSuperFlags;
-use rafs::metadata::{Inode, RAFS_DEFAULT_CHUNK_SIZE, RAFS_MAX_CHUNK_SIZE};
+use rafs::metadata::{Inode, RAFS_DEFAULT_CHUNK_SIZE};
 use rafs::{RafsIoReader, RafsIoWrite};
 use storage::device::{BlobFeatures, BlobInfo};
 use storage::meta::{BlobChunkInfoOndisk, BlobMetaHeaderOndisk};
 
 use super::chunk_dict::{ChunkDict, HashChunkDict};
-use super::layout::BlobLayout;
 use super::node::{ChunkSource, ChunkWrapper, Node, WhiteoutSpec};
 use super::prefetch::{Prefetch, PrefetchPolicy};
 
@@ -78,7 +76,6 @@ impl RafsVersion {
 pub enum SourceType {
     Directory,
     StargzIndex,
-    Diff,
 }
 
 impl Default for SourceType {
@@ -93,7 +90,6 @@ impl FromStr for SourceType {
         match s {
             "directory" => Ok(Self::Directory),
             "stargz_index" => Ok(Self::StargzIndex),
-            "diff" => Ok(Self::Diff),
             _ => Err(anyhow!("invalid source type")),
         }
     }
@@ -308,8 +304,6 @@ pub struct BlobContext {
     pub blob_id: String,
     pub blob_hash: Sha256,
     pub blob_readahead_size: u64,
-    /// Blob data layout manager
-    pub blob_layout: BlobLayout,
     /// Data chunks stored in the data blob, for v6.
     pub blob_meta_info: Vec<BlobChunkInfoOndisk>,
     /// Whether to generate blob metadata information.
@@ -330,15 +324,8 @@ pub struct BlobContext {
     pub chunk_count: u32,
     /// Chunk slice size.
     pub chunk_size: u32,
-    /// Scratch data buffer for reading from/writing to disk files.
-    pub chunk_data_buf: Vec<u8>,
-    /// ChunkDict which would be loaded when builder start
-    pub gloabl_chunk_dict: Arc<dyn ChunkDict>,
     /// Whether the blob is from chunk dict.
     pub chunk_source: ChunkSource,
-
-    // Blob writer for writing to disk file.
-    pub writer: Option<ArtifactWriter>,
 }
 
 impl Clone for BlobContext {
@@ -347,7 +334,6 @@ impl Clone for BlobContext {
             blob_id: self.blob_id.clone(),
             blob_hash: self.blob_hash.clone(),
             blob_readahead_size: self.blob_readahead_size,
-            blob_layout: self.blob_layout.clone(),
             blob_meta_info: self.blob_meta_info.clone(),
             blob_meta_info_enabled: self.blob_meta_info_enabled,
             blob_meta_header: self.blob_meta_header,
@@ -360,32 +346,35 @@ impl Clone for BlobContext {
 
             chunk_count: self.chunk_count,
             chunk_size: self.chunk_size,
-            chunk_data_buf: self.chunk_data_buf.clone(),
-            gloabl_chunk_dict: self.gloabl_chunk_dict.clone(),
             chunk_source: self.chunk_source.clone(),
-            writer: None,
         }
     }
 }
 
 impl BlobContext {
-    pub fn new(
-        blob_id: String,
-        blob_stor: Option<ArtifactStorage>,
-        blob_offset: u64,
-        fifo: bool,
-    ) -> Result<Self> {
-        let writer = if let Some(blob_stor) = blob_stor {
-            Some(ArtifactWriter::new(blob_stor, fifo)?)
-        } else {
-            None
-        };
+    pub fn new(blob_id: String, blob_offset: u64) -> Self {
+        Self {
+            blob_id,
+            blob_hash: Sha256::new(),
+            blob_readahead_size: 0,
+            blob_meta_info_enabled: false,
+            blob_meta_info: Vec::new(),
+            blob_meta_header: BlobMetaHeaderOndisk::default(),
 
-        Ok(Self::new_with_writer(blob_id, writer, blob_offset))
+            compressed_blob_size: 0,
+            decompressed_blob_size: 0,
+
+            compress_offset: blob_offset,
+            decompress_offset: 0,
+
+            chunk_count: 0,
+            chunk_size: RAFS_DEFAULT_CHUNK_SIZE as u32,
+            chunk_source: ChunkSource::Build,
+        }
     }
 
     pub fn from(ctx: &BuildContext, blob: &BlobInfo, chunk_source: ChunkSource) -> Self {
-        let mut blob_ctx = Self::new_with_writer(blob.blob_id().to_owned(), None, 0);
+        let mut blob_ctx = Self::new(blob.blob_id().to_owned(), 0);
 
         blob_ctx.blob_readahead_size = blob.readahead_size();
         blob_ctx.chunk_count = blob.chunk_count();
@@ -414,46 +403,6 @@ impl BlobContext {
         }
 
         blob_ctx
-    }
-
-    pub fn new_with_writer(
-        blob_id: String,
-        writer: Option<ArtifactWriter>,
-        blob_offset: u64,
-    ) -> Self {
-        let size = if writer.is_some() {
-            RAFS_MAX_CHUNK_SIZE as usize
-        } else {
-            0
-        };
-
-        Self {
-            blob_id,
-            blob_hash: Sha256::new(),
-            blob_readahead_size: 0,
-            blob_layout: BlobLayout::new(),
-            blob_meta_info_enabled: false,
-            blob_meta_info: Vec::new(),
-            blob_meta_header: BlobMetaHeaderOndisk::default(),
-
-            compressed_blob_size: 0,
-            decompressed_blob_size: 0,
-
-            compress_offset: blob_offset,
-            decompress_offset: 0,
-
-            chunk_count: 0,
-            chunk_size: RAFS_DEFAULT_CHUNK_SIZE as u32,
-            chunk_data_buf: vec![0u8; size],
-            gloabl_chunk_dict: Arc::new(()),
-            chunk_source: ChunkSource::Build,
-
-            writer,
-        }
-    }
-
-    pub fn set_chunk_dict(&mut self, dict: Arc<dyn ChunkDict>) {
-        self.gloabl_chunk_dict = dict;
     }
 
     pub fn set_chunk_size(&mut self, chunk_size: u32) {
@@ -526,6 +475,7 @@ pub struct BlobManager {
     /// We can get blob index for a layer by using:
     /// `self.blobs.iter().flatten().collect()[layer_index];`
     blobs: Vec<BlobContext>,
+    current_blob_index: Option<u32>,
     /// Chunk dictionary to hold chunks from an extra chunk dict file.
     /// Used for chunk data de-duplication within the whole image.
     pub global_chunk_dict: Arc<dyn ChunkDict>,
@@ -538,8 +488,35 @@ impl BlobManager {
     pub fn new() -> Self {
         Self {
             blobs: Vec::new(),
+            current_blob_index: None,
             global_chunk_dict: Arc::new(()),
             layered_chunk_dict: HashChunkDict::default(),
+        }
+    }
+
+    fn new_blob_ctx(ctx: &BuildContext) -> Result<BlobContext> {
+        let mut blob_ctx = BlobContext::new(ctx.blob_id.clone(), ctx.blob_offset);
+        blob_ctx.set_chunk_size(ctx.chunk_size);
+        blob_ctx.set_meta_info_enabled(ctx.fs_version == RafsVersion::V6);
+
+        Ok(blob_ctx)
+    }
+
+    pub fn set_current_blob(&mut self, ctx: &BuildContext) -> Result<&mut BlobContext> {
+        if self.current_blob_index.is_none() {
+            let blob_ctx = Self::new_blob_ctx(ctx)?;
+            self.current_blob_index = Some(self.alloc_index()?);
+            self.add(blob_ctx);
+        }
+        // Safe to unwrap because the blob context has been added.
+        Ok(self.get_current_blob().unwrap())
+    }
+
+    pub fn get_current_blob(&mut self) -> Option<&mut BlobContext> {
+        if let Some(idx) = self.current_blob_index {
+            Some(&mut self.blobs[idx as usize])
+        } else {
+            None
         }
     }
 
@@ -696,7 +673,6 @@ pub struct BootstrapContext {
     pub offset: u64,
     /// Bootstrap file name, only be used for diff build.
     pub name: String,
-    pub blobs: Vec<BuildOutputBlob>,
     /// Not fully used blocks
     pub available_blocks: Vec<VecDeque<u64>>,
     pub writer: Box<dyn RafsIoWrite>,
@@ -716,7 +692,6 @@ impl BootstrapContext {
             nodes: Vec::new(),
             offset: EROFS_BLOCK_SIZE,
             name: String::new(),
-            blobs: Vec::new(),
             available_blocks: vec![
                 VecDeque::new();
                 EROFS_BLOCK_SIZE as usize / EROFS_INODE_SLOT_SIZE
@@ -800,10 +775,6 @@ impl BootstrapManager {
 
     pub fn add(&mut self, bootstrap_ctx: BootstrapContext) {
         self.bootstraps.push(bootstrap_ctx);
-    }
-
-    pub fn get_bootstraps(&self) -> &Vec<BootstrapContext> {
-        &self.bootstraps
     }
 
     pub fn get_last_bootstrap(&self) -> Option<String> {
@@ -932,26 +903,9 @@ impl Default for BuildContext {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-pub struct BuildOutputBlob {
-    pub blob_id: String,
-    pub blob_size: u64,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-pub struct BuildOutputArtifact {
-    // Bootstrap file name in this build.
-    pub bootstrap_name: String,
-    // The blobs in blob table of this bootstrap.
-    pub blobs: Vec<BuildOutputBlob>,
-}
-
 /// BuildOutput represents the output in this build.
 #[derive(Default, Debug, Clone)]
 pub struct BuildOutput {
-    /// Artifacts (bootstrap + blob) for all layer in this build, vector
-    /// index equals layer index.
-    pub artifacts: Vec<BuildOutputArtifact>,
     /// Blob ids in the blob table of last bootstrap.
     pub blobs: Vec<String>,
     /// The size of output blob in this build.
@@ -963,14 +917,6 @@ pub struct BuildOutput {
 
 impl BuildOutput {
     pub fn new(blob_mgr: &BlobManager, bootstrap_mgr: &BootstrapManager) -> Result<BuildOutput> {
-        let bootstraps = bootstrap_mgr.get_bootstraps();
-        let mut artifacts = Vec::new();
-        for bootstrap in bootstraps {
-            artifacts.push(BuildOutputArtifact {
-                bootstrap_name: bootstrap.name.clone(),
-                blobs: bootstrap.blobs.clone(),
-            });
-        }
         let blobs = blob_mgr.get_blob_ids();
 
         let last_blob_size = blob_mgr.get_last_blob().map(|b| b.compressed_blob_size);
@@ -979,7 +925,6 @@ impl BuildOutput {
             .ok_or_else(|| anyhow!("can't get last bootstrap"))?;
 
         Ok(Self {
-            artifacts,
             blobs,
             last_blob_size,
             last_bootstrap_name,
