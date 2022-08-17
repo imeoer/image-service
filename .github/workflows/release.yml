@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        arch: [amd64, arm64, s390x, ppc64le, riscv64, armv7]
     steps:
     - uses: actions/checkout@v2
     - name: Cache cargo
@@ -30,7 +30,7 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ matrix.arch }}
     - name: Build nydus-rs
       run: |
-        declare -A rust_arch_map=( ["amd64"]="x86_64" ["arm64"]="aarch64")
+        declare -A rust_arch_map=( ["amd64"]="x86_64" ["arm64"]="aarch64" ["s390x"]="s390x" ["ppc64le"]="powerpc64le" ["riscv64"]="riscv64gc" ["arm-v7"]="armv7")
         arch=${rust_arch_map[${{ matrix.arch }}]}
         cargo install --version 0.2.1 cross
         rustup component add rustfmt clippy
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        arch: [amd64, arm64, s390x, ppc64le, riscv64, armv7]
     env:
       DOCKER: false
     steps:
@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        arch: [amd64, arm64, s390x, ppc64le, riscv64, armv7]
         os: [linux]
     needs: [nydus-linux, contrib-linux]
     steps:
