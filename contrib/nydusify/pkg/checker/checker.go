@@ -6,6 +6,7 @@ package checker
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -84,6 +85,7 @@ func (checker *Checker) Check(ctx context.Context) error {
 			if checker.sourceParser != nil {
 				checker.sourceParser.Remote.MaybeWithHTTP(err)
 			}
+			fmt.Println("MaybeWithHTTP", err)
 			checker.targetParser.Remote.MaybeWithHTTP(err)
 			return checker.check(ctx)
 		}
@@ -137,6 +139,7 @@ func (checker *Checker) check(ctx context.Context) error {
 		}
 	}
 
+	fmt.Println("checker.targetParser.Remote.IsWithHTTP()", checker.targetParser.Remote.IsWithHTTP())
 	rules := []rule.Rule{
 		&rule.ManifestRule{
 			SourceParsed:  sourceParsed,

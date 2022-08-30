@@ -52,6 +52,7 @@ func (remote *Remote) MaybeWithHTTP(err error) {
 	parsed, _ := reference.ParseNormalizedNamed(remote.Ref)
 	if parsed != nil {
 		host := reference.Domain(parsed)
+		fmt.Println("reference.Domain(parsed)", host)
 		// If the error message includes the current registry host string, it
 		// implies that we can retry the request with plain HTTP.
 		if strings.Contains(err.Error(), fmt.Sprintf("/%s/", host)) {
