@@ -20,6 +20,14 @@ jobs:
         arch: [amd64, arm64, ppc64le, riscv64]
     steps:
     - uses: actions/checkout@v2
+    - name: Update Cargo.toml Version
+      shell: bash
+      run: |
+        tag=$(echo $GITHUB_REF | cut -d/ -f3-)
+        mv Cargo.toml Cargo.toml.orig
+        sed "s/0\\.0\\.0-git/${tag##*\/v}/" Cargo.toml.orig >Cargo.toml
+        mv Cargo.lock Cargo.lock.orig
+        sed "s/0\\.0\\.0-git/${tag##*\/v}/" Cargo.lock.orig >Cargo.lock
     - name: Cache cargo
       uses: Swatinem/rust-cache@v1
       with:
@@ -59,6 +67,14 @@ jobs:
         arch: [amd64, arm64]
     steps:
     - uses: actions/checkout@v2
+    - name: Update Cargo.toml Version
+      shell: bash
+      run: |
+        tag=$(echo $GITHUB_REF | cut -d/ -f3-)
+        mv Cargo.toml Cargo.toml.orig
+        sed "s/0\\.0\\.0-git/${tag##*\/v}/" Cargo.toml.orig >Cargo.toml
+        mv Cargo.lock Cargo.lock.orig
+        sed "s/0\\.0\\.0-git/${tag##*\/v}/" Cargo.lock.orig >Cargo.lock
     - name: Cache cargo
       uses: Swatinem/rust-cache@v1
       with:
