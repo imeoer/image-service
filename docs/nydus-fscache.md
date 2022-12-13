@@ -67,7 +67,7 @@ make
   make
   ```
 
-3. Prepare a configuration json like below, named as `/path/nydus-erofs-config.json`:
+3. Prepare a configuration json like below, named as `/etc/nydus/config.json`:
 
 ```json
 {
@@ -89,7 +89,7 @@ make
 mkdir -p /var/lib/containerd/io.containerd.snapshotter.v1.nydus
 
 ./bin/containerd-nydus-grpc \
- --config-path /path/nydus-erofs-config.json \
+ --config-path /etc/nydus/config.json \
  --daemon-mode shared \
  --fs-driver fscache \
  --log-level info \
