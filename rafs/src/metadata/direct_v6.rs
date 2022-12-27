@@ -1152,7 +1152,7 @@ impl RafsInodeExt for OndiskInodeWrapper {
             + (idx as usize * size_of::<RafsV6InodeChunkAddr>());
         let chunk_addr = state.map.get_ref::<RafsV6InodeChunkAddr>(offset)?;
 
-        if state.meta.has_inlined_chunk_digest() {
+        if state.meta.probe_toc && state.meta.has_inlined_chunk_digest() {
             let blob_index = chunk_addr.blob_index();
             let chunk_index = chunk_addr.blob_ci_index();
             let device = self.mapping.device.lock().unwrap();

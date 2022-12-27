@@ -86,7 +86,10 @@ impl Rafs {
         let blob_infos = sb.superblock.get_blob_infos();
         let device = BlobDevice::new(cfg, &blob_infos).map_err(RafsError::CreateDevice)?;
 
-        if cfg.is_chunk_validation_enabled() && sb.meta.has_inlined_chunk_digest() {
+        if rafs_cfg.probe_toc
+            && cfg.is_chunk_validation_enabled()
+            && sb.meta.has_inlined_chunk_digest()
+        {
             sb.superblock.set_blob_device(device.clone());
         }
 

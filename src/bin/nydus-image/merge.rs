@@ -31,7 +31,6 @@ use crate::core::tree::{MetadataTreeBuilder, Tree};
 pub struct Merger {}
 
 impl Merger {
-    /*
     /// Merge assumes the bootstrap name is in `$blob_digest` format.
     fn get_raw_blob_digest(bootstrap_path: &Path) -> Result<String> {
         let file_name = bootstrap_path
@@ -41,7 +40,6 @@ impl Merger {
             .ok_or_else(|| anyhow!("convert to string"))?;
         Ok(file_name.to_string())
     }
-     */
 
     fn get_digest_from_list(digests: &Option<Vec<String>>, idx: usize) -> Result<Option<[u8; 32]>> {
         Ok(if let Some(digests) = &digests {
@@ -163,7 +161,7 @@ impl Merger {
 
                     // The blob id (blob sha256 hash) in parent bootstrap is invalid for nydusd
                     // runtime, should change it to the hash of whole tar blob.
-                    blob_ctx.blob_id = blob.blob_id().to_owned();
+                    blob_ctx.blob_id = Self::get_raw_blob_digest(bootstrap_path)?;
                     if let Some(digest) = Self::get_digest_from_list(&blob_digests, layer_idx)? {
                         if blob.has_feature(BlobFeatures::ZRAN) {
                             blob_ctx.rafs_blob_digest = digest;

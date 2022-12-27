@@ -196,9 +196,7 @@ impl BlobInfo {
 
     /// Get the id of the blob, with special handling of `inlined-meta` case.
     pub fn blob_id(&self) -> String {
-        if self.has_feature(BlobFeatures::INLINED_META) && !self.has_feature(BlobFeatures::ZRAN)
-            || !self.meta_ci_is_valid()
-        {
+        if self.has_feature(BlobFeatures::INLINED_META) && !self.has_feature(BlobFeatures::ZRAN) {
             let guard = self.meta_path.lock().unwrap();
             if !guard.is_empty() {
                 return guard.deref().clone();
@@ -451,16 +449,13 @@ impl BlobInfo {
     /// Get RAFS blob id for ZRan.
     pub fn get_rafs_blob_id(&self) -> Result<String, Error> {
         assert!(self.has_feature(BlobFeatures::ZRAN));
-        let id = if self.has_feature(BlobFeatures::INLINED_META) {
+        if self.has_feature(BlobFeatures::INLINED_META) {
             let guard = self.meta_path.lock().unwrap();
-            if guard.is_empty() {
-                return Err(einval!("failed to get blob id from meta file name"));
+            if !guard.is_empty() {
+                return Ok(guard.deref().clone());
             }
-            guard.deref().clone()
-        } else {
-            hex::encode(&self.rafs_blob_digest)
-        };
-        Ok(id)
+        }
+        Ok(hex::encode(&self.rafs_blob_digest))
     }
 }
 

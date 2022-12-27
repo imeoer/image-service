@@ -145,9 +145,12 @@ impl ConfigV2 {
 
     /// Get configuration information for RAFS filesystem.
     pub fn get_rafs_config(&self) -> Result<&RafsConfigV2> {
-        self.rafs
-            .as_ref()
-            .ok_or_else(|| einval!("no configuration information for rafs"))
+        self.rafs.as_ref().ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidInput,
+                "no configuration information for rafs",
+            )
+        })
     }
 
     /// Clone the object with all secrets removed.
@@ -644,6 +647,9 @@ pub struct RafsConfigV2 {
     /// Filesystem prefetching configuration.
     #[serde(default)]
     pub prefetch: PrefetchConfigV2,
+    /// Probe TOC list included in the blob.
+    #[serde(default)]
+    pub probe_toc: bool,
 }
 
 impl RafsConfigV2 {
@@ -969,6 +975,9 @@ struct RafsConfig {
     // ZERO value means, amplifying user io is not enabled.
     #[serde(default = "default_batch_size")]
     pub amplify_io: usize,
+    /// Probe TOC list included in the blob.
+    #[serde(default)]
+    pub probe_toc: bool,
 }
 
 impl TryFrom<RafsConfig> for ConfigV2 {
@@ -986,6 +995,7 @@ impl TryFrom<RafsConfig> for ConfigV2 {
             access_pattern: v.access_pattern,
             latest_read_files: v.latest_read_files,
             prefetch: v.fs_prefetch.into(),
+            probe_toc: v.probe_toc,
         };
         if !cache.prefetch.enable && rafs.prefetch.enable {
             cache.prefetch = rafs.prefetch.clone();

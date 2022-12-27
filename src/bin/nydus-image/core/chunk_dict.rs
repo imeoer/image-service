@@ -133,7 +133,7 @@ impl HashChunkDict {
         };
 
         rafs_config.check_compatibility(&rs.meta)?;
-        if rs.meta.is_v5() || rs.meta.has_inlined_chunk_digest() {
+        if rs.meta.is_v5() || rs.meta.probe_toc && rs.meta.has_inlined_chunk_digest() {
             Tree::from_bootstrap(&rs, &mut d).context("failed to build tree from bootstrap")?;
         } else if rs.meta.is_v6() {
             d.load_chunk_table(&rs)

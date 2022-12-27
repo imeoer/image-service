@@ -431,6 +431,9 @@ pub struct RafsSuperMeta {
     pub chunk_table_offset: u64,
     /// Size  of the chunk table for RAFS v6.
     pub chunk_table_size: u64,
+
+    /// Probe TOC list included in the blob.
+    pub probe_toc: bool,
 }
 
 impl RafsSuperMeta {
@@ -519,6 +522,7 @@ impl Default for RafsSuperMeta {
             is_chunk_dict: false,
             chunk_table_offset: 0,
             chunk_table_size: 0,
+            probe_toc: false,
         }
     }
 }
@@ -634,9 +638,12 @@ impl Default for RafsSuper {
 impl RafsSuper {
     /// Create a new `RafsSuper` instance from a `RafsConfigV2` object.
     pub fn new(conf: &RafsConfigV2) -> Result<Self> {
+        let mut meta = RafsSuperMeta::default();
+        meta.probe_toc = conf.probe_toc;
         Ok(Self {
             mode: RafsMode::from_str(conf.mode.as_str())?,
             validate_digest: conf.validate,
+            meta,
             ..Default::default()
         })
     }
@@ -655,12 +662,18 @@ impl RafsSuper {
         is_chunk_dict: bool,
         config: Arc<ConfigV2>,
     ) -> Result<(Self, RafsIoReader)> {
+        let mut probe_toc = false;
+        if let Ok(rafs_config) = config.get_rafs_config() {
+            probe_toc = rafs_config.probe_toc;
+        }
+
         let mut rs = RafsSuper {
             mode: RafsMode::Direct,
             validate_digest,
             ..Default::default()
         };
         rs.meta.is_chunk_dict = is_chunk_dict;
+        rs.meta.probe_toc = probe_toc;
 
         // open bootstrap file
         let file = OpenOptions::new()
@@ -669,25 +682,28 @@ impl RafsSuper {
             .open(path.as_ref())?;
         let mut reader = Box::new(file) as RafsIoReader;
 
-        if let Err(e) = rs.load(&mut reader) {
-            let id = BlobInfo::get_blob_id_from_meta_path(path.as_ref())?;
-            let new_path = match TocEntryList::extract_rafs_meta(&id, config.clone()) {
-                Ok(v) => v,
-                Err(_e) => {
-                    debug!("failed to load inlined RAFS meta, {}", _e);
-                    return Err(e);
-                }
-            };
-            let file = OpenOptions::new().read(true).write(false).open(new_path)?;
-            reader = Box::new(file) as RafsIoReader;
+        if probe_toc {
+            if let Err(e) = rs.load(&mut reader) {
+                let id = BlobInfo::get_blob_id_from_meta_path(path.as_ref())?;
+                let new_path = match TocEntryList::extract_rafs_meta(&id, config.clone()) {
+                    Ok(v) => v,
+                    Err(_e) => {
+                        debug!("failed to load inlined RAFS meta, {}", _e);
+                        return Err(e);
+                    }
+                };
+                let file = OpenOptions::new().read(true).write(false).open(new_path)?;
+                reader = Box::new(file) as RafsIoReader;
+                rs.load(&mut reader)?;
+                rs.set_blob_id_from_meta_path(path.as_ref())?;
+            }
+            if (validate_digest || config.is_chunk_validation_enabled())
+                && rs.meta.has_inlined_chunk_digest()
+            {
+                rs.create_blob_device(config)?;
+            }
+        } else {
             rs.load(&mut reader)?;
-            rs.set_blob_id_from_meta_path(path.as_ref())?;
-        }
-
-        if (validate_digest || config.is_chunk_validation_enabled())
-            && rs.meta.has_inlined_chunk_digest()
-        {
-            rs.create_blob_device(config)?;
         }
 
         Ok((rs, reader))
