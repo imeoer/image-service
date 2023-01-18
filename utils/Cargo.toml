@@ -25,12 +25,12 @@ nix = "0.24"
 nydus-error = { version = "0.2", path = "../error" }
 
 # libz-ng-sys doesn't compile on ppc64. Have to fallback to stock zlib-sys
-[target.'cfg(target_arch = "powerpc64")'.dependencies]
+# [target.'cfg(target_arch = "powerpc64")'.dependencies]
 libz-sys = { version = "1.1.8", features = ["stock-zlib"], default-features = false, optional = true }
 flate2 = { version = "1.0.17", features = ["zlib"], default-features = false }
-[target.'cfg(not(target_arch = "powerpc64"))'.dependencies]
-libz-sys = { version = "1.1.8", features = ["zlib-ng"], default-features = false, optional = true }
-flate2 = { version = "1.0.17", features = ["zlib-ng-compat"], default-features = false }
+# [target.'cfg(not(target_arch = "powerpc64"))'.dependencies]
+# libz-sys = { version = "1.1.8", features = ["zlib-ng"], default-features = false, optional = true }
+# flate2 = { version = "1.0.17", features = ["zlib-ng-compat"], default-features = false }
 
 [dev-dependencies]
 vmm-sys-util = ">=0.9.0"

@@ -17,7 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [amd64, arm64, ppc64le, riscv64]
+        # arch: [amd64, arm64, ppc64le, riscv64]
+        arch: [amd64]
     steps:
     - uses: actions/checkout@v2
     - name: Cache cargo
@@ -33,12 +34,23 @@ jobs:
         RUST_TARGET=${rust_target_map[${{ matrix.arch }}]}
         cargo install --version 0.2.4 cross
         rustup component add rustfmt clippy
-        make -e RUST_TARGET_STATIC=$RUST_TARGET -e CARGO=cross static-release
+        # make -e RUST_TARGET_STATIC=$RUST_TARGET -e CARGO=cross static-release
+        cross build --target x86_64-unknown-linux-musl --release -v
         sudo mv target/$RUST_TARGET/release/nydusd nydusd
         sudo mv target/$RUST_TARGET/release/nydus-image .
         sudo mv target/$RUST_TARGET/release/nydusctl .
         sudo cp -r misc/configs .
         sudo chown -R $(id -un):$(id -gn) . ~/.cargo/
+    # - uses: actions-rs/toolchain@v1
+    #   with:
+    #     toolchain: 1.66.1
+    #     target: x86_64-unknown-linux-musl
+    #     override: true
+    # - uses: actions-rs/cargo@v1
+    #   with:
+    #     use-cross: true
+    #     command: build
+    #     args: --target x86_64-unknown-linux-musl --release
     - name: store-artifacts
       uses: actions/upload-artifact@v2
       with:
