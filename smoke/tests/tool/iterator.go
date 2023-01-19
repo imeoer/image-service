@@ -51,19 +51,20 @@ func (d *DescartesItem) Str() string {
 //
 // An example is below:
 //
-//	import (
+//    import (
 //        "fmt"
+//
 //        "github.com/dragonflyoss/image-service/smoke/tests/tool"
 //    )
 //
-//	products := tool.DescartesIterator{}
-//	products.
-//		Register("name", []interface{}{"foo", "imoer", "morgan"}).
-//		Register("age", []interface{}{"20", "30"}).
-//		Skip(func(item *tool.DescartesItem) bool {
+//    products := tool.DescartesIterator{}
+//    products.
+//        Register("name", []interface{}{"foo", "imoer", "morgan"}).
+//        Register("age", []interface{}{"20", "30"}).
+//        Skip(func(item *tool.DescartesItem) bool {
 //            // skip ("morgan", "30")
-//			return item.GetString("name") == "morgan" && param.GetString("age") == "30"
-//		})
+//            return item.GetString("name") == "morgan" && item.GetString("age") == "30"
+//        })
 //
 //    // output:
 //    //       age: 20, name: foo
@@ -71,7 +72,7 @@ func (d *DescartesItem) Str() string {
 //    //       age: 20, name: morgan
 //    //       age: 30, name: foo
 //    //       age: 30, name: imoer
-//    for products.HasNext(){
+//    for products.HasNext() {
 //        item := products.Next()
 //        fmt.Println(item.Str())
 //    }
