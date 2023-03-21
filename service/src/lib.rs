@@ -231,9 +231,16 @@ pub trait ServiceArgs {
 pub struct BlobCacheMgr {}
 
 #[cfg(not(target_os = "linux"))]
+impl Default for BlobCacheMgr {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
 impl BlobCacheMgr {
     pub fn new() -> Self {
-        BlobCacheMgr {}
+        Self::default()
     }
 
     pub fn add_blob_list(&self, _blobs: &nydus_api::BlobCacheList) -> std::io::Result<()> {
