@@ -22,6 +22,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
+	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/attacher"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/checker"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/checker/rule"
 	"github.com/dragonflyoss/image-service/contrib/nydusify/pkg/chunkdict/generator"
@@ -1084,6 +1085,71 @@ func main() {
 				}
 
 				return copier.Copy(context.Background(), opt)
+			},
+		},
+		{
+			Name:  "attach",
+			Usage: "Attach TARGET image to SOURCE image with OCI referrer",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:     "source",
+					Required: true,
+					Usage:    "Source image reference",
+					EnvVars:  []string{"SOURCE"},
+				},
+				&cli.StringFlag{
+					Name:     "target",
+					Required: false,
+					Usage:    "Target image reference",
+					EnvVars:  []string{"TARGET"},
+				},
+				&cli.BoolFlag{
+					Name:     "source-insecure",
+					Required: false,
+					Usage:    "Skip verifying server certs for HTTPS source registry",
+					EnvVars:  []string{"SOURCE_INSECURE"},
+				},
+				&cli.BoolFlag{
+					Name:     "target-insecure",
+					Required: false,
+					Usage:    "Skip verifying server certs for HTTPS target registry",
+					EnvVars:  []string{"TARGET_INSECURE"},
+				},
+
+				&cli.BoolFlag{
+					Name:  "all-platforms",
+					Value: false,
+					Usage: "Copy images for all platforms, conflicts with --platform",
+				},
+				&cli.StringFlag{
+					Name:  "platform",
+					Value: "linux/" + runtime.GOARCH,
+					Usage: "Copy images for specific platforms, for example: 'linux/amd64,linux/arm64'",
+				},
+
+				&cli.StringFlag{
+					Name:    "work-dir",
+					Value:   "./tmp",
+					Usage:   "Working directory for image copy",
+					EnvVars: []string{"WORK_DIR"},
+				},
+			},
+			Action: func(c *cli.Context) error {
+				setupLogLevel(c)
+
+				opt := attacher.Opt{
+					WorkDir: c.String("work-dir"),
+
+					Source:         c.String("source"),
+					Target:         c.String("target"),
+					SourceInsecure: c.Bool("source-insecure"),
+					TargetInsecure: c.Bool("target-insecure"),
+
+					AllPlatforms: c.Bool("all-platforms"),
+					Platforms:    c.String("platform"),
+				}
+
+				return attacher.Attach(context.Background(), opt)
 			},
 		},
 	}
