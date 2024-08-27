@@ -100,6 +100,8 @@ func (c *HotUpgradeTestSuite) TestHotUpgrade(t *testing.T) {
 	ctx.PrepareWorkDir(t)
 	defer ctx.Destroy(t)
 
+	subPathCount := 3
+
 	// Build nydus layer
 	layer := texture.MakeLowerLayer(t, filepath.Join(ctx.Env.WorkDir, "root"))
 	bootstrap := c.buildLayer(t, ctx, layer)
@@ -113,7 +115,7 @@ func (c *HotUpgradeTestSuite) TestHotUpgrade(t *testing.T) {
 	// Start old nydusd to mount rootfs
 	oldNydusd := c.newNydusd(t, ctx, "old", false)
 	defer oldNydusd.Umount()
-	for i := 0; i < 50; i++ {
+	for i := 0; i < subPathCount; i++ {
 		c.mountByAPI(t, ctx, oldNydusd, bootstrap, fmt.Sprintf("/sub-%d", i))
 	}
 
@@ -122,7 +124,9 @@ func (c *HotUpgradeTestSuite) TestHotUpgrade(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify filesytem on new nydusd
-	// oldNydusd.Verify(t, layer.FileTree)
+	for i := 0; i < subPathCount; i++ {
+		oldNydusd.VerifyByPath(t, layer.FileTree, fmt.Sprintf("sub-%d", i))
+	}
 
 	// Snapshotter receive fuse fd from old nydusd
 	err = supervisor.FetchDaemonStates(oldNydusd.SendFd)
@@ -131,8 +135,6 @@ func (c *HotUpgradeTestSuite) TestHotUpgrade(t *testing.T) {
 	// Start new nydusd in upgrade mode (don't mount)
 	newNydusd := c.newNydusd(t, ctx, "new", true)
 	defer newNydusd.Umount()
-	c.mountByAPI(t, ctx, newNydusd, bootstrap, "/sub-1")
-	c.mountByAPI(t, ctx, newNydusd, bootstrap, "/sub-2")
 
 	// New nydusd's state should be INIT
 	err = newNydusd.WaitStatus("INIT")
@@ -163,7 +165,9 @@ func (c *HotUpgradeTestSuite) TestHotUpgrade(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify filesytem on new nydusd
-	// newNydusd.Verify(t, layer.FileTree)
+	for i := 0; i < subPathCount; i++ {
+		newNydusd.VerifyByPath(t, layer.FileTree, fmt.Sprintf("sub-%d", i))
+	}
 }
 
 func TestHotUpgrade(t *testing.T) {

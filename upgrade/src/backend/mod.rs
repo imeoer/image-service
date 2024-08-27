@@ -24,7 +24,7 @@ pub type Result<T> = std::result::Result<T, StorageBackendErr>;
 pub trait StorageBackend: Send + Sync {
     /// Save the dev fds and daemon state data for online upgrade.
     /// Returns the length of bytes of state data.
-    fn save(&mut self, fds: &[RawFd], data: &[u8]) -> Result<usize>;
+    fn save(&mut self, fds: &[RawFd], opaque: &[u8]) -> Result<usize>;
 
     /// Restore the dev fds and daemon state data for online upgrade.
     /// Returns the fds and state data

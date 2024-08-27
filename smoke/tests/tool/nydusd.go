@@ -117,9 +117,9 @@ var configTpl = `
 	 },
 	 "digest_validate": {{.DigestValidate}},
 	 "enable_xattr": true,
-     "latest_read_files": {{.LatestReadFiles}},
-     "access_pattern": {{.AccessPattern}},
-     "amplify_io": {{.AmplifyIO}}
+	 "latest_read_files": {{.LatestReadFiles}},
+	 "access_pattern": {{.AccessPattern}},
+	 "amplify_io": {{.AmplifyIO}}
  }
  `
 
@@ -345,11 +345,12 @@ func (nydusd *Nydusd) MountByAPI(config NydusdConfig) error {
 	if err != nil {
 		return err
 	}
-	_, err = nydusd.client.Post(
+	resp, err := nydusd.client.Post(
 		fmt.Sprintf("http://unix/api/v1/mount?mountpoint=%s", config.MountPath),
 		"application/json",
 		bytes.NewBuffer(body),
 	)
+	defer resp.Body.Close()
 
 	return err
 }
@@ -621,12 +622,13 @@ func (nydusd *Nydusd) GetInflightMetrics() (*InflightMetrics, error) {
 	return &info, err
 }
 
-func (nydusd *Nydusd) Verify(t *testing.T, expectedFileTree map[string]*File) {
+func (nydusd *Nydusd) VerifyByPath(t *testing.T, expectedFileTree map[string]*File, subPath string) {
 	actualFiles := map[string]*File{}
-	err := filepath.WalkDir(nydusd.MountPath, func(path string, _ fs.DirEntry, err error) error {
+	rootPath := filepath.Join(nydusd.MountPath, subPath)
+	err := filepath.WalkDir(rootPath, func(path string, _ fs.DirEntry, err error) error {
 		require.Nil(t, err)
 
-		targetPath, err := filepath.Rel(nydusd.MountPath, path)
+		targetPath, err := filepath.Rel(rootPath, path)
 		require.NoError(t, err)
 
 		if targetPath == "." || targetPath == ".." {
@@ -652,6 +654,10 @@ func (nydusd *Nydusd) Verify(t *testing.T, expectedFileTree map[string]*File) {
 			t.Fatalf("not found file %s in nydus layer: %s %s", targetPath, nydusd.MountPath, nydusd.BootstrapPath)
 		}
 	}
+}
+
+func (nydusd *Nydusd) Verify(t *testing.T, expectedFileTree map[string]*File) {
+	nydusd.VerifyByPath(t, expectedFileTree, nydusd.MountPath)
 }
 
 func Verify(t *testing.T, ctx Context, expectedFileTree map[string]*File) {
