@@ -105,8 +105,7 @@ impl OutputSerializer {
 
     fn dump_with_check(
         matches: &clap::ArgMatches,
-        build_info: &BuildTimeInfo,
-        blob_ids: Vec<String>,
+        check_result: validator::CheckResult,
     ) -> Result<()> {
         let output_json: Option<PathBuf> = matches
             .value_of("output-json")
@@ -120,15 +119,7 @@ impl OutputSerializer {
                 .open(f)
                 .with_context(|| format!("Output file {:?} can't be opened", f))?;
 
-            let trace = root_tracer!().dump_summary_map().unwrap_or_default();
-            let version = format!("{}-{}", build_info.package_ver, build_info.git_commit);
-            let output = Self {
-                version,
-                blobs: blob_ids,
-                trace,
-            };
-
-            serde_json::to_writer(w, &output).context("Write output file failed")?;
+            serde_json::to_writer(w, &check_result).context("Write output file failed")?;
         }
 
         Ok(())
@@ -563,7 +554,7 @@ fn main() -> Result<()> {
     } else if let Some(matches) = cmd.subcommand_matches("merge") {
         Command::merge(matches, &build_info)
     } else if let Some(matches) = cmd.subcommand_matches("check") {
-        Command::check(matches, &build_info)
+        Command::check(matches)
     } else if let Some(matches) = cmd.subcommand_matches("inspect") {
         Command::inspect(matches)
     } else if let Some(matches) = cmd.subcommand_matches("stat") {
@@ -766,16 +757,15 @@ impl Command {
         unpacker.unpack().with_context(|| "fail to unpack")
     }
 
-    fn check(matches: &clap::ArgMatches, build_info: &BuildTimeInfo) -> Result<()> {
+    fn check(matches: &clap::ArgMatches) -> Result<()> {
         let bootstrap_path = Self::get_bootstrap(matches)?;
         let verbose = matches.is_present("verbose");
         let mut validator = Validator::new(bootstrap_path)?;
-        let blob_ids = validator
+        let check_result = validator
             .check(verbose)
             .with_context(|| format!("failed to check bootstrap {:?}", bootstrap_path))?;
 
-        info!("bootstrap is valid, blobs: {:?}", blob_ids);
-        OutputSerializer::dump_with_check(matches, build_info, blob_ids)?;
+        OutputSerializer::dump_with_check(matches, check_result)?;
 
         Ok(())
     }
