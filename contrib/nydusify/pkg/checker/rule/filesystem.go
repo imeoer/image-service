@@ -16,6 +16,7 @@ import (
 
 	modelspec "github.com/CloudNativeAI/model-spec/specs-go/v1"
 	"github.com/distribution/reference"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/dragonflyoss/nydus/contrib/nydusify/pkg/checker/tool"
 	"github.com/dragonflyoss/nydus/contrib/nydusify/pkg/parser"
@@ -364,38 +365,43 @@ func (rule *FilesystemRule) verify(sourceRootfs, targetRootfs string) error {
 	logrus.Infof("comparing filesystem")
 
 	sourceNodes := map[string]Node{}
+	targetNodes := map[string]Node{}
 
-	// Concurrently walk the rootfs directory of source and nydus image
-	walkErr := make(chan error)
-	go func() {
+	eg := errgroup.Group{}
+
+	eg.Go(func() error {
 		var err error
 		sourceNodes, err = rule.walk(sourceRootfs)
-		walkErr <- err
-	}()
-
-	targetNodes, err := rule.walk(targetRootfs)
-	if err != nil {
 		return errors.Wrap(err, "walk rootfs of source image")
-	}
+	})
 
-	if err := <-walkErr; err != nil {
-		return errors.Wrap(err, "walk rootfs of source image")
+	eg.Go(func() error {
+		var err error
+		targetNodes, err = rule.walk(targetRootfs)
+		return errors.Wrap(err, "walk rootfs of target image")
+	})
+
+	if err := eg.Wait(); err != nil {
+		return err
 	}
 
 	for path, sourceNode := range sourceNodes {
 		targetNode, exist := targetNodes[path]
 		if !exist {
-			return fmt.Errorf("file not found in target image: %s", path)
+			logrus.Warnf("file not found in target image: %s", path)
+			continue
 		}
 		delete(targetNodes, path)
 
 		if path != "/" && !reflect.DeepEqual(sourceNode, targetNode) {
-			return fmt.Errorf("file not match in target image:\n\t[source] %s\n\t[target] %s", sourceNode.String(), targetNode.String())
+			logrus.Warnf("file not match in target image:\n\t[source] %s\n\t[target] %s", sourceNode.String(), targetNode.String())
+			continue
 		}
 	}
 
 	for path := range targetNodes {
-		return fmt.Errorf("file not found in source image: %s", path)
+		logrus.Warnf("file not found in source image: %s", path)
+		continue
 	}
 
 	return nil

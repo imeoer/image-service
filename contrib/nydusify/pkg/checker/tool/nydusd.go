@@ -180,6 +180,8 @@ func (nydusd *Nydusd) Mount() error {
 		nydusd.BootstrapPath,
 		"--apisock",
 		nydusd.APISockPath,
+		"--thread-num",
+		"20",
 		"--log-level",
 		"warn",
 	}

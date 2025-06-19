@@ -34,7 +34,7 @@ func prettyDump(obj interface{}, name string) error {
 // Output outputs OCI and nydus image manifest, index, config to JSON file.
 // Prefer to use source image to output OCI image information.
 func (checker *Checker) Output(
-	ctx context.Context, parsed *parser.Parsed, dir string,
+	ctx context.Context, parser *parser.Parser, parsed *parser.Parsed, dir string,
 ) error {
 	logrus.WithField("type", tool.CheckImageType(parsed)).WithField("image", parsed.Remote.Ref).Info("dumping manifest")
 
@@ -91,12 +91,6 @@ func (checker *Checker) Output(
 
 		bootstrapDir := filepath.Join(dir, "nydus_bootstrap")
 		logrus.WithField("type", tool.CheckImageType(parsed)).WithField("image", parsed.Remote.Ref).Info("pulling bootstrap")
-		var parser *parser.Parser
-		if dir == "source" {
-			parser = checker.sourceParser
-		} else {
-			parser = checker.targetParser
-		}
 		bootstrapReader, err := parser.PullNydusBootstrap(ctx, parsed.NydusImage)
 		if err != nil {
 			return errors.Wrap(err, "pull nydus bootstrap layer")

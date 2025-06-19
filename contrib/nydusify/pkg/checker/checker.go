@@ -116,13 +116,13 @@ func (checker *Checker) check(ctx context.Context) error {
 	}
 
 	if sourceParsed != nil {
-		if err := checker.Output(ctx, sourceParsed, filepath.Join(checker.WorkDir, "source")); err != nil {
+		if err := checker.Output(ctx, checker.sourceParser, sourceParsed, filepath.Join(checker.WorkDir, "source")); err != nil {
 			return errors.Wrapf(err, "output image information: %s", sourceParsed.Remote.Ref)
 		}
 	}
 
 	if targetParsed != nil {
-		if err := checker.Output(ctx, targetParsed, filepath.Join(checker.WorkDir, "target")); err != nil {
+		if err := checker.Output(ctx, checker.targetParser, targetParsed, filepath.Join(checker.WorkDir, "target")); err != nil {
 			return errors.Wrapf(err, "output image information: %s", targetParsed.Remote.Ref)
 		}
 	}
