@@ -77,7 +77,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: nydusify/go.mod
+          # docker/cli guards `cli/config/configfile` with `//go:build go1.25`,
+          # so the go.mod directive (1.24.2) is not enough to build nydusify.
+          go-version: "1.25.5"
           cache-dependency-path: nydusify/go.sum
 
       - name: Build nydusify
