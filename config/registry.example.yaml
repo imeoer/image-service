@@ -77,7 +77,8 @@ storage:
   # when unset (or the whole `storage` section is omitted), reads run
   # diskless — every read fetches from the backend directly and nothing is
   # written to disk. Kernel-served modes (fanotify/nbd/ublk/uffd) and
-  # `nydus optimize` require a directory.
+  # `nydus optimize` require a directory, unless every blob is a native layer
+  # in a local store (the store file is mapped in place of a cache file).
   dir: /var/lib/nydus/cache
   # Skip verifying decoded chunks against their BLAKE3 digests before they
   # are served. Default: true. Every fetched chunk group is always checked

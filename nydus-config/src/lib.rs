@@ -324,7 +324,8 @@ pub struct StorageConfig {
     /// written to disk: every read fetches from the backend directly and the
     /// kernel page cache is the only reuse layer. Modes that hand the cache
     /// file to the kernel (fanotify, NBD, ublk, userfaultfd, virtio-pmem)
-    /// require a directory.
+    /// require a directory unless every blob is a native layer in a local
+    /// store, whose store file is mapped in place of a cache file.
     #[serde(default)]
     pub dir: Option<PathBuf>,
 

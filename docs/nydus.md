@@ -961,7 +961,9 @@ Fields:
 	and nothing is written to disk — the kernel page cache above the mount is
 	the only reuse layer. Diskless mode applies to `nydus fuse` and `nydus check`; the modes
 	that hand the cache file to the kernel (`fanotify`, `nbd`, `ublk`, `uffd`)
-	and `nydus optimize` require a directory and reject its absence at startup.
+	and `nydus optimize` require a directory and reject its absence at startup,
+	unless every blob is a native layer in a local store, whose store file is
+	mapped in place of a cache file.
 - `storage.skip_verify_checksums` (default `true`) skips verifying decoded
 	chunks against the blob meta's BLAKE3 digests before they are served.
 	Every fetched chunk group is always checked against its `crc32c`; set this
@@ -1807,8 +1809,11 @@ padded chunk address space as a device). Native layers are made for block
 devices: a kernel mount reads the store file directly as a `device=` (a cloud
 disk such as EBS, a local volume, a virtio-blk image: no daemon, per-request
 charging, so the layout minimises read requests). They are never lazily
-loaded by the nydus daemons — the registry backend rejects them and the
-on-demand frontends have no cache file for them; `nydus fuse` and `nydus
+loaded by the nydus daemons — the registry backend rejects them and nothing
+is fetched or cached for them. From a local store the block-shaped services
+(`uffd`, `nbd`, `ublk`, `fanotify`) map the store file itself, whose data
+region is the device, so a flattened image can mix in native layers as long
+as they are local; `nydus fuse` and `nydus
 export` read them whole from a local store, decompressing pclusters in
 userspace, which is how `nydusify check` and the nydus-to-OCI conversion
 handle them on any kernel.
@@ -1933,8 +1938,10 @@ The kernel only reads the leading data region of each store file.
 `nydus fuse` mounts a native image from a local store without any cache
 (`--blob-dir /store`), decompressing pclusters per read in userspace; this
 needs no z_erofs support from the kernel and is what `nydusify check` uses.
-The on-demand frontends (`ublk`, `nbd`, `fanotify`, `uffd`) and registry
-backends do not serve native layers.
+The on-demand frontends (`ublk`, `nbd`, `fanotify`, `uffd`) serve native
+layers only from a local store, by mapping the store file in place of a cache
+file (block `N` is byte `N * 4096` of the file); registry backends do not
+serve them at all.
 
 ### Checking
 
