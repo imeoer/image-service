@@ -288,75 +288,95 @@ impl NydusCore {
             return Ok(Vec::new());
         };
 
-        let mut resolver = ExtentResolver::new(&self.blobs.reader, self.zero_file.as_raw_fd());
+        // Bootstrap and holes resolve locally; blob segments are collected
+        // first so a fetch can pull every missed blob of the range at once.
+        enum Piece {
+            Ready(Extent),
+            Blob(BlobRangeSpec),
+        }
+        let mut pieces = Vec::new();
         let mut pos = offset;
         let bootstrap_end = end.min(self.bootstrap_size);
         if pos < bootstrap_end {
-            resolver.push(Extent::new(
+            pieces.push(Piece::Ready(Extent::new(
                 self.bootstrap.as_raw_fd(),
                 pos,
                 bootstrap_end - pos,
                 pos,
-            ));
+            )));
             pos = bootstrap_end;
         }
-        if pos >= end {
-            return Ok(resolver.finish());
-        }
 
-        let blobs = self
-            .blobs
-            .flat_layout()
-            .context("failed to describe blob device layout")?;
+        if pos < end {
+            let blobs = self
+                .blobs
+                .flat_layout()
+                .context("failed to describe blob device layout")?;
 
-        while pos < end {
-            // `blobs` is sorted by `mapped_offset` and blob ranges never
-            // overlap (device-table layout), so the only candidate containing
-            // `pos` is the last blob starting at or before it — found with a
-            // binary search instead of a linear scan (this runs per I/O).
-            let after = blobs.partition_point(|blob| blob.mapped_offset <= pos);
-            let covering = after
-                .checked_sub(1)
-                .map(|index| &blobs[index])
-                .filter(|blob| {
-                    mapped_range_offset(blob.mapped_offset, blob.cache_size, pos).is_some()
-                });
+            while pos < end {
+                // `blobs` is sorted by `mapped_offset` and blob ranges never
+                // overlap (device-table layout), so the only candidate containing
+                // `pos` is the last blob starting at or before it — found with a
+                // binary search instead of a linear scan (this runs per I/O).
+                let after = blobs.partition_point(|blob| blob.mapped_offset <= pos);
+                let covering = after
+                    .checked_sub(1)
+                    .map(|index| &blobs[index])
+                    .filter(|blob| {
+                        mapped_range_offset(blob.mapped_offset, blob.cache_size, pos).is_some()
+                    });
 
-            if let Some(blob) = covering {
-                let blob_end = blob
-                    .mapped_offset
-                    .checked_add(blob.cache_size)
-                    .ok_or_else(|| Error::Overflow("blob device range overflow".to_string()))?;
-                let seg_end = end.min(blob_end);
-                let blob_offset = pos - blob.mapped_offset;
-                resolver.push_blob(
-                    BlobRangeSpec {
+                if let Some(blob) = covering {
+                    let blob_end = blob
+                        .mapped_offset
+                        .checked_add(blob.cache_size)
+                        .ok_or_else(|| Error::Overflow("blob device range overflow".to_string()))?;
+                    let seg_end = end.min(blob_end);
+                    let blob_offset = pos - blob.mapped_offset;
+                    pieces.push(Piece::Blob(BlobRangeSpec {
                         index: blob.index,
                         offset: blob_offset,
                         len: seg_end - pos,
                         source_offset: pos,
-                    },
-                    mode,
-                )?;
-                pos = seg_end;
-            } else {
-                // `blobs[after]` is the first blob starting after `pos`, so it
-                // bounds the hole (or the view ends first).
-                let next_blob = blobs
-                    .get(after)
-                    .map(|blob| blob.mapped_offset)
-                    .unwrap_or(end);
-                let hole_end = end.min(next_blob);
-                if hole_end <= pos {
-                    break;
+                    }));
+                    pos = seg_end;
+                } else {
+                    // `blobs[after]` is the first blob starting after `pos`, so it
+                    // bounds the hole (or the view ends first).
+                    let next_blob = blobs
+                        .get(after)
+                        .map(|blob| blob.mapped_offset)
+                        .unwrap_or(end);
+                    let hole_end = end.min(next_blob);
+                    if hole_end <= pos {
+                        break;
+                    }
+                    pieces.push(Piece::Ready(Extent::new(
+                        self.zero_file.as_raw_fd(),
+                        0,
+                        hole_end - pos,
+                        pos,
+                    )));
+                    pos = hole_end;
                 }
-                resolver.push(Extent::new(
-                    self.zero_file.as_raw_fd(),
-                    0,
-                    hole_end - pos,
-                    pos,
-                ));
-                pos = hole_end;
+            }
+        }
+
+        let mut resolver = ExtentResolver::new(&self.blobs.reader, self.zero_file.as_raw_fd());
+        if mode == ResolveMode::Fetch {
+            let specs: Vec<BlobRangeSpec> = pieces
+                .iter()
+                .filter_map(|piece| match piece {
+                    Piece::Blob(spec) => Some(*spec),
+                    Piece::Ready(_) => None,
+                })
+                .collect();
+            resolver.fetch_blobs(&specs)?;
+        }
+        for piece in pieces {
+            match piece {
+                Piece::Ready(extent) => resolver.push(extent),
+                Piece::Blob(spec) => resolver.push_blob(spec, mode)?,
             }
         }
 

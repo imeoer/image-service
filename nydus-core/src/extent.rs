@@ -145,12 +145,7 @@ impl<'a> ExtentResolver<'a> {
 
         match mode {
             ResolveMode::Fetch => {
-                cache.ensure_range(spec.offset, spec.len).with_context(|| {
-                    format!(
-                        "failed to fetch blob {} range [{}, +{})",
-                        spec.index, spec.offset, spec.len
-                    )
-                })?;
+                self.fetch_blob(&spec)?;
                 self.push(Extent::new(fd, spec.offset, spec.len, spec.source_offset));
             }
             ResolveMode::Probe => {
@@ -171,6 +166,43 @@ impl<'a> ExtentResolver<'a> {
     /// Consume the resolver and return the accumulated ranges.
     pub(crate) fn finish(self) -> Vec<Extent> {
         self.ranges
+    }
+
+    /// Make `spec`'s bytes ready in its blob cache, fetching them if needed.
+    fn fetch_blob(&self, spec: &BlobRangeSpec) -> Result<()> {
+        let cache = self
+            .reader
+            .blob_cache(spec.index)
+            .with_context(|| format!("failed to open blob {}", spec.index))?;
+        cache.ensure_range(spec.offset, spec.len).with_context(|| {
+            format!(
+                "failed to fetch blob {} range [{}, +{})",
+                spec.index, spec.offset, spec.len
+            )
+        })
+    }
+
+    /// Make every spec ready, fetching the ones that miss concurrently: a
+    /// request that straddles blobs otherwise pays one backend round trip per
+    /// blob in sequence. Each spec is a distinct blob, so the fetches share
+    /// nothing but the backend.
+    pub(crate) fn fetch_blobs(&self, specs: &[BlobRangeSpec]) -> Result<()> {
+        match specs {
+            [] => Ok(()),
+            [spec] => self.fetch_blob(spec),
+            _ => std::thread::scope(|scope| {
+                let workers: Vec<_> = specs
+                    .iter()
+                    .map(|spec| scope.spawn(move || self.fetch_blob(spec)))
+                    .collect();
+                for worker in workers {
+                    worker.join().map_err(|_| {
+                        Error::Io(io::Error::other("blob fetch worker panicked"))
+                    })??;
+                }
+                Ok(())
+            }),
+        }
     }
 }
 
